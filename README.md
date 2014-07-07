@@ -1,0 +1,3 @@
+The goal is to create an IPython client for Neovim, similar to ivanov/vim-ipython, but designed for nvim's improved plugin architechture and async event handling.
+
+Not much to see here yet...
