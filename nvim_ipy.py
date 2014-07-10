@@ -23,3 +23,18 @@ class IPythonPlugin(object):
         lastline = self.buf[-1]
         txt = lastline + data
         self.buf[-1:] = txt.splitlines()
+
+    def get_selection(self, kind):
+        vim = self.vim
+        if kind == "visual":
+            b = vim.current.buffer
+            start = b.mark('<')
+            end = b.mark('>')
+            lines = b[start[0]-1:end[0]]
+            txt = '\n'.join(lines) + '\n'
+            return txt
+        elif kind == "line":
+            return vim.current.line + '\n'
+
+
+        
