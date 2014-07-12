@@ -1,4 +1,4 @@
-import os
+import os, sys
 import neovim
 class IPythonPlugin(object):
     def __init__(self, vim):
@@ -6,6 +6,10 @@ class IPythonPlugin(object):
 
     def create_outbuf(self):
         vim = self.vim
+        for b in vim.buffers:
+            if "[ipython]" in b.name:
+                self.buf = b
+                return
         vim.command(":new")
         buf = vim.current.buffer
         buf.options["buflisted"] = False
@@ -20,10 +24,10 @@ class IPythonPlugin(object):
 
     def append_outbuf(self, data):
         # FIXME: encoding
+        print(repr(data))
         lastline = self.buf[-1]
         txt = lastline + data
-        self.buf[-1:] = txt.splitlines()
-
+        self.buf[-1:] = txt.split("\n") # not splitlines
     def get_selection(self, kind):
         vim = self.vim
         if kind == "visual":
@@ -36,5 +40,25 @@ class IPythonPlugin(object):
         elif kind == "line":
             return vim.current.line + '\n'
 
+    def on_ipy_runline(self, msg):
+        line = self.get_selection('line')
+        self.append_outbuf(line)
+
+    def do_ev(self):
+        msg = self.vim.next_message()
+        method = "on_" + msg.name
+        if hasattr(self, method):
+            getattr(self, method)(msg)
+        else:
+            print("warning: ignore", msg.name)
+
+    def run(self):
+        self.create_outbuf()
+        self.vim.subscribe("ipy_runline")
+        while True: self.do_ev()
+        
+if __name__ == "__main__":
+    vim = neovim.connect(sys.argv[1])
+    IPythonPlugin(vim).run()
 
         
