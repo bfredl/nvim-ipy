@@ -1,3 +1,4 @@
+from __future__ import print_function, division
 import os, sys
 import neovim
 import IPython
@@ -8,6 +9,7 @@ class IPythonPlugin(object):
         self.create_outbuf()
         self.vim.subscribe("ipy_runline")
         self.has_connection = False
+        self.pending_shell_msgs = {}
 
     # TODO: subclass IPythonConsoleApp for flexibe launch/reconnetion to kernels
     # only support connect to exisitng for now
@@ -17,12 +19,13 @@ class IPythonPlugin(object):
         self.km.load_connection_file()
         self.kc = self.km.client()
         self.kc.start_channels()
+        self.sc = self.kc.shell_channel
         self.has_connection = True
 
     def create_outbuf(self):
         vim = self.vim
         for b in vim.buffers:
-            if "[ipython]" in b.name:
+            if "[ipython" in b.name:
                 self.buf = b
                 return
         vim.command(":new")
@@ -30,16 +33,11 @@ class IPythonPlugin(object):
         buf.options["buflisted"] = False
         buf.options["swapfile"] = False
         buf.options["buftype"] = "nofile"
-        try:
-            buf.name = "[ipython]"
-        except:
-            #FIXME: this is not unique either
-            buf.name = "[ipy-{}]".format(os.getpid())
+        buf.name = "[ipython]"
         self.buf = buf
 
     def append_outbuf(self, data):
         # FIXME: encoding
-        print(repr(data))
         lastline = self.buf[-1]
         txt = lastline + data
         self.buf[-1:] = txt.split("\n") # not splitlines
@@ -56,9 +54,43 @@ class IPythonPlugin(object):
         elif kind == "line":
             return vim.current.line + '\n'
 
+    def handle(self, msg_id, handler):
+        self.pending_shell_msgs[msg_id] = handler
+
+    def ignore(self, msg_id):
+        self.handle(msg_id, None)
+
     def on_ipy_runline(self, msg):
         line = self.get_selection('line')
-        self.kc.shell_channel.execute(line)
+        self.ignore(self.sc.execute(line))
+
+    def on_iopub_msg(self, m):
+        t = m['header'].get('msg_type',None)
+        content = m['content']
+
+        if t == 'status':
+            status = content['execution_state']
+            if status == 'busy':
+                #FIXME: export a hook for airline etc instead
+                self.buf.name = '[ipython-busy]'
+            else:
+                self.buf.name = '[ipython]'
+        elif t == 'pyin':
+            no = content['execution_count']
+            code = content['code']
+            self.append_outbuf('In[{}]: {}\n'.format(no, code))
+        else:
+            self.append_outbuf('{!s}: {!r}\n'.format(t, content))
+
+    def on_shell_msg(self, m):
+        msg_id = m['parent_header']['msg_id']
+        try:
+            handler = self.pending_shell_msgs.pop(msg_id)
+        except KeyError:
+            print('unexpected shell msg:', repr(m))
+            return
+        if handler is not None:
+            handler(m)
 
     def do_nvim_ev(self,timeout=None):
         try:
@@ -75,11 +107,11 @@ class IPythonPlugin(object):
     def do_kernel_ev(self):
         while self.kc.iopub_channel.msg_ready():
             msg = self.kc.iopub_channel.get_msg()
-            self.append_outbuf(repr(msg)+'\n')
+            self.on_iopub_msg(msg)
 
-        while self.kc.shell_channel.msg_ready():
-            msg = self.kc.shell_channel.get_msg()
-            self.append_outbuf("shell: " + repr(msg)+'\n')
+        while self.sc.msg_ready():
+            msg = self.sc.get_msg()
+            self.on_shell_msg(msg)
 
     def do_ev(self):
         self.do_nvim_ev(0)
