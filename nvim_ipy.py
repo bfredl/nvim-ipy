@@ -1,10 +1,23 @@
 import os, sys
 import neovim
+import IPython
+from IPython.kernel import KernelManager, find_connection_file
 class IPythonPlugin(object):
     def __init__(self, vim):
         self.vim = vim
         self.create_outbuf()
         self.vim.subscribe("ipy_runline")
+        self.has_connection = False
+
+    # TODO: subclass IPythonConsoleApp for flexibe launch/reconnetion to kernels
+    # only support connect to exisitng for now
+    def connect(self, path, profile=None):
+        fullpath = find_connection_file(path)
+        self.km = KernelManager(connection_file = fullpath)
+        self.km.load_connection_file()
+        self.kc = self.km.client()
+        self.kc.start_channels()
+        self.has_connection = True
 
     def create_outbuf(self):
         vim = self.vim
@@ -30,6 +43,7 @@ class IPythonPlugin(object):
         lastline = self.buf[-1]
         txt = lastline + data
         self.buf[-1:] = txt.split("\n") # not splitlines
+
     def get_selection(self, kind):
         vim = self.vim
         if kind == "visual":
@@ -44,13 +58,13 @@ class IPythonPlugin(object):
 
     def on_ipy_runline(self, msg):
         line = self.get_selection('line')
-        self.append_outbuf(line)
+        self.kc.shell_channel.execute(line)
 
-    def do_ev(self,timeout=None):
+    def do_nvim_ev(self,timeout=None):
         try:
             msg = self.vim.next_message(timeout)
         except NameError: #FIXME: upstream should emit TimeoutError
-            return 0
+            return
         method = "on_" + msg.name
         if hasattr(self, method):
             getattr(self, method)(msg)
@@ -58,13 +72,29 @@ class IPythonPlugin(object):
             print("warning: ignore", msg.name)
         return 0 #inputhook shall return 0
 
+    def do_kernel_ev(self):
+        while self.kc.iopub_channel.msg_ready():
+            msg = self.kc.iopub_channel.get_msg()
+            self.append_outbuf(repr(msg)+'\n')
+
+        while self.kc.shell_channel.msg_ready():
+            msg = self.kc.shell_channel.get_msg()
+            self.append_outbuf("shell: " + repr(msg)+'\n')
+
+    def do_ev(self):
+        self.do_nvim_ev(0)
+        if self.has_connection: self.do_kernel_ev()
+        return 0
+
     def run(self):
-        while True: self.do_ev()
+        while True: #FIXME: select instead
+            self.do_ev()
+            sleep(0.005)
 
     # debug ipython client plugint using ipython console...
     def ipython_inputhook_register(self):
         from IPython.lib.inputhook import inputhook_manager
-        inputhook_manager.set_inputhook(lambda: self.do_ev(0))
+        inputhook_manager.set_inputhook(lambda: self.do_ev())
         
 def test_ipython(path):
     vim = neovim.connect(path)
