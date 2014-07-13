@@ -1,5 +1,7 @@
 from __future__ import print_function, division
+from time import sleep
 import os, sys
+import json
 import neovim
 import IPython
 from IPython.kernel import KernelManager, find_connection_file
@@ -8,6 +10,7 @@ class IPythonPlugin(object):
         self.vim = vim
         self.create_outbuf()
         self.vim.subscribe("ipy_runline")
+        self.vim.subscribe("ipy_complete")
         self.has_connection = False
         self.pending_shell_msgs = {}
 
@@ -78,6 +81,23 @@ class IPythonPlugin(object):
     def on_ipy_runline(self, msg):
         line = self.get_selection('line')
         self.ignore(self.sc.execute(line))
+
+    def on_ipy_complete(self, msg):
+        line = self.vim.current.line
+        #FIXME: (upstream) this sometimes get wrong if 
+        #completing just after entering insert mode:
+        #pos = self.vim.current.buffer.mark(".")[1]+1
+        pos = self.vim.eval("col('.')")-1
+        print(line[:pos])
+        def on_reply(reply):
+            content = reply["content"]
+            #TODO: check if position is still valid
+            start = pos-len(content['matched_text'])+1
+            matches = json.dumps(content['matches'])
+            print("call complete({}, {})".format(start,matches))
+            self.vim.send_command("call complete({}, {})".format(start,matches))
+        self.handle(self.sc.complete('', line, pos), on_reply)
+
 
     def on_iopub_msg(self, m):
         t = m['header'].get('msg_type',None)
