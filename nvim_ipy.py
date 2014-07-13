@@ -11,17 +11,6 @@ class IPythonPlugin(object):
         self.has_connection = False
         self.pending_shell_msgs = {}
 
-    # TODO: subclass IPythonConsoleApp for flexibe launch/reconnetion to kernels
-    # only support connect to exisitng for now
-    def connect(self, path, profile=None):
-        fullpath = find_connection_file(path)
-        self.km = KernelManager(connection_file = fullpath)
-        self.km.load_connection_file()
-        self.kc = self.km.client()
-        self.kc.start_channels()
-        self.sc = self.kc.shell_channel
-        self.has_connection = True
-
     def create_outbuf(self):
         vim = self.vim
         for b in vim.buffers:
@@ -41,6 +30,14 @@ class IPythonPlugin(object):
         lastline = self.buf[-1]
         txt = lastline + data
         self.buf[-1:] = txt.split("\n") # not splitlines
+        for w in self.vim.windows:
+            if w.buffer == self.buf:
+                w0 = self.vim.current.window
+                #FIXME: (upstream) cursor pos is only updated in current window!
+                self.vim.current.window = w
+                w.cursor = [len(self.buf), int(1e9)]
+                self.vim.current.window = w0
+
 
     def get_selection(self, kind):
         vim = self.vim
@@ -53,6 +50,24 @@ class IPythonPlugin(object):
             return txt
         elif kind == "line":
             return vim.current.line + '\n'
+
+    # TODO: subclass IPythonConsoleApp for flexibe launch/reconnetion to kernels
+    # only support connect to exisitng for now
+    def connect(self, path, profile=None):
+        fullpath = find_connection_file(path)
+        self.km = KernelManager(connection_file = fullpath)
+        self.km.load_connection_file()
+        self.kc = self.km.client()
+        self.kc.start_channels()
+        self.sc = self.kc.shell_channel
+        self.has_connection = True
+
+        self.handle(self.sc.kernel_info(), self.on_kernel_info)
+
+    def on_kernel_info(self, reply):
+        lang = reply['content']['language']
+        #FIXME: (upstream) this don't seem to trigger "set ft"
+        self.buf.options['ft'] = lang
 
     def handle(self, msg_id, handler):
         self.pending_shell_msgs[msg_id] = handler
@@ -78,7 +93,11 @@ class IPythonPlugin(object):
         elif t == 'pyin':
             no = content['execution_count']
             code = content['code']
-            self.append_outbuf('In[{}]: {}\n'.format(no, code))
+            self.append_outbuf('In[{}]: {}\n'.format(no, code.rstrip()))
+        elif t == 'pyout':
+            no = content['execution_count']
+            res = content['data']['text/plain']
+            self.append_outbuf('Out[{}]: {}\n\n'.format(no, res.rstrip()))
         else:
             self.append_outbuf('{!s}: {!r}\n'.format(t, content))
 
@@ -128,10 +147,11 @@ class IPythonPlugin(object):
         from IPython.lib.inputhook import inputhook_manager
         inputhook_manager.set_inputhook(lambda: self.do_ev())
         
-def test_ipython(path):
-    vim = neovim.connect(path)
+def test_ipython(nvpath, ippath):
+    vim = neovim.connect(nvpath)
     p = IPythonPlugin(vim)
     p.ipython_inputhook_register()
+    p.connect(ippath)
     return vim, p
 
 if __name__ == "__main__":
