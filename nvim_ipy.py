@@ -5,6 +5,15 @@ import json
 import neovim
 import IPython
 from IPython.kernel import KernelManager, find_connection_file
+from IPython.core.application import BaseIPythonApplication
+from IPython.consoleapp import IPythonConsoleApp
+
+class IPythonVimApp(IPythonConsoleApp, BaseIPythonApplication):
+    def initialize(self, argv):
+        #TODO: find out the proper way of doing this
+        BaseIPythonApplication.initialize(self, argv)
+        IPythonConsoleApp.initialize(self, argv)
+
 class IPythonPlugin(object):
     def __init__(self, vim):
         self.vim = vim
@@ -54,14 +63,13 @@ class IPythonPlugin(object):
         elif kind == "line":
             return vim.current.line + '\n'
 
-    # TODO: subclass IPythonConsoleApp for flexibe launch/reconnetion to kernels
-    # only support connect to exisitng for now
-    def connect(self, path, profile=None):
-        fullpath = find_connection_file(path)
-        self.km = KernelManager(connection_file = fullpath)
-        self.km.load_connection_file()
-        self.kc = self.km.client()
-        self.kc.start_channels()
+    # TODO: perhaps expose also the "programmatic" connection api
+    def connect(self, argv):
+        # Probably more 'idiomatic' to subclass this,
+        # BUT the "fragile baseclass' problem
+        self.ip_app = IPythonVimApp()
+        self.ip_app.initialize(argv)
+        self.kc = self.ip_app.kernel_client
         self.sc = self.kc.shell_channel
         self.has_connection = True
 
@@ -94,7 +102,6 @@ class IPythonPlugin(object):
             #TODO: check if position is still valid
             start = pos-len(content['matched_text'])+1
             matches = json.dumps(content['matches'])
-            print("call complete({}, {})".format(start,matches))
             self.vim.send_command("call complete({}, {})".format(start,matches))
         self.handle(self.sc.complete('', line, pos), on_reply)
 
@@ -169,11 +176,11 @@ class IPythonPlugin(object):
         from IPython.lib.inputhook import inputhook_manager
         inputhook_manager.set_inputhook(lambda: self.do_ev())
         
-def test_ipython(nvpath, ippath):
+def test_ipython(nvpath, argv):
     vim = neovim.connect(nvpath)
     p = IPythonPlugin(vim)
     p.ipython_inputhook_register()
-    p.connect(ippath)
+    p.connect(argv)
     return vim, p
 
 if __name__ == "__main__":
