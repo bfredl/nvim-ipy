@@ -9,7 +9,7 @@ class IPythonPlugin(object):
     def __init__(self, vim):
         self.vim = vim
         self.create_outbuf()
-        self.vim.subscribe("ipy_runline")
+        self.vim.subscribe("ipy_run")
         self.vim.subscribe("ipy_complete")
         self.has_connection = False
         self.pending_shell_msgs = {}
@@ -78,14 +78,14 @@ class IPythonPlugin(object):
     def ignore(self, msg_id):
         self.handle(msg_id, None)
 
-    def on_ipy_runline(self, msg):
-        line = self.get_selection('line')
-        self.ignore(self.sc.execute(line))
+    def on_ipy_run(self, msg):
+        sel = self.get_selection(msg.arg[0])
+        self.ignore(self.sc.execute(sel))
 
     def on_ipy_complete(self, msg):
         line = self.vim.current.line
         #FIXME: (upstream) this sometimes get wrong if 
-        #completing just after entering insert mode:
+        #completi:g just after entering insert mode:
         #pos = self.vim.current.buffer.mark(".")[1]+1
         pos = self.vim.eval("col('.')")-1
         print(line[:pos])
@@ -113,11 +113,13 @@ class IPythonPlugin(object):
         elif t == 'pyin':
             no = content['execution_count']
             code = content['code']
-            self.append_outbuf('In[{}]: {}\n'.format(no, code.rstrip()))
+            self.append_outbuf('\nIn[{}]: {}\n'.format(no, code.rstrip()))
         elif t == 'pyout':
             no = content['execution_count']
             res = content['data']['text/plain']
-            self.append_outbuf('Out[{}]: {}\n\n'.format(no, res.rstrip()))
+            self.append_outbuf('Out[{}]: {}\n'.format(no, res.rstrip()))
+        elif t == 'stream':
+            self.append_outbuf(content['data'])
         else:
             self.append_outbuf('{!s}: {!r}\n'.format(t, content))
 
