@@ -25,6 +25,7 @@ class IPythonPlugin(object):
         self.vim.subscribe("ipy_run")
         self.vim.subscribe("ipy_complete")
         self.vim.subscribe("ipy_objinfo")
+        self.vim.subscribe("ipy_interrupt")
         self.has_connection = False
         self.pending_shell_msgs = {}
 
@@ -83,9 +84,36 @@ class IPythonPlugin(object):
         self.handle(self.sc.kernel_info(), self.on_kernel_info)
 
     def on_kernel_info(self, reply):
-        lang = reply['content']['language']
+        c = reply['content']
+        lang = c['language']
         #FIXME: (upstream) this don't seem to trigger "set ft"
-        self.buf.options['ft'] = lang
+        #self.buf.options['ft'] = lang
+        w0 = self.vim.current.window
+        if self.vim.current.buffer != self.buf:
+            for w in self.vim.windows:
+                if w.buffer == self.buf:
+                    self.vim.current.window = w
+                    break
+            else:
+                return #reopen window?
+        vim.command("set ft={}".format(lang))
+        try:
+            ipy_version = c['ipython_version']
+        except KeyError:
+            ipy_version = IPython.version_info
+        vdesc = '.'.join(str(i) for i in ipy_version[:3])
+        if ipy_version[3] != '':
+            vdesc += '-' + ipy_version[3]
+        banner = [
+                "nvim-jupyter: asynchronous interactive computing",
+                "IPython {}".format(vdesc),
+                "language: {} {}".format(lang, '.'.join(str(i) for i in c['language_version'])),
+                "",
+                ]
+        self.buf[:0] = banner
+        self.vim.current.window = w0
+
+
 
     def handle(self, msg_id, handler):
         #FIXME: add timeout when refactoring event code
@@ -134,6 +162,12 @@ class IPythonPlugin(object):
             sep = '\n' if c[field].count('\n') else ' '
             #TODO: option for separate doc buffer
             self.append_outbuf('{}:{}{}\n'.format(field,sep,c[field].rstrip()))
+
+    def on_ipy_interrupt(self, msg):
+        # FIXME: only works on kernel we did start
+        # steal vim-ipython's getpid workaround?
+        self.ip_app.kernel_manager.interrupt_kernel()
+
 
     def on_iopub_msg(self, m):
         t = m['header'].get('msg_type',None)
