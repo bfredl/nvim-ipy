@@ -2,11 +2,15 @@ from __future__ import print_function, division
 from time import sleep
 import os, sys
 import json
+import re
 import neovim
 import IPython
 from IPython.kernel import KernelManager, find_connection_file
 from IPython.core.application import BaseIPythonApplication
 from IPython.consoleapp import IPythonConsoleApp
+
+# from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
+strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
 
 class IPythonVimApp(IPythonConsoleApp, BaseIPythonApplication):
     def initialize(self, argv):
@@ -20,6 +24,7 @@ class IPythonPlugin(object):
         self.create_outbuf()
         self.vim.subscribe("ipy_run")
         self.vim.subscribe("ipy_complete")
+        self.vim.subscribe("ipy_objinfo")
         self.has_connection = False
         self.pending_shell_msgs = {}
 
@@ -37,8 +42,10 @@ class IPythonPlugin(object):
         buf.name = "[ipython]"
         self.buf = buf
 
+    # FIXME: encoding
     def append_outbuf(self, data):
-        # FIXME: encoding
+        # TODO: replace with some fancy syntax marks instead
+        data = strip_ansi.sub('', data)
         lastline = self.buf[-1]
         txt = lastline + data
         self.buf[-1:] = txt.split("\n") # not splitlines
@@ -81,6 +88,7 @@ class IPythonPlugin(object):
         self.buf.options['ft'] = lang
 
     def handle(self, msg_id, handler):
+        #FIXME: add timeout when refactoring event code
         self.pending_shell_msgs[msg_id] = handler
 
     def ignore(self, msg_id):
@@ -105,30 +113,56 @@ class IPythonPlugin(object):
             self.vim.send_command("call complete({}, {})".format(start,matches))
         self.handle(self.sc.complete('', line, pos), on_reply)
 
+    def on_ipy_objinfo(self, msg):
+        word = msg.arg[0]
+        try:
+            level = msg.arg[1]
+        except IndexError:
+            level = 0
+        self.handle(self.sc.object_info(word, level), self.on_objinfo_reply)
+
+    def on_objinfo_reply(self, reply):
+        c = reply['content']
+        if not c['found']:
+            self.append_outbuf("not found: {}\n".format(o['name']))
+            return
+        #TODO: enable subqueries like "what is the type", interactive argspec (like jedi-vim) etc
+        for field in ['name','namespace','type_name','base_class','length','string_form',
+            'file','definition','source','docstring']:
+            if field not in c:
+                continue
+            sep = '\n' if c[field].count('\n') else ' '
+            #TODO: option for separate doc buffer
+            self.append_outbuf('{}:{}{}\n'.format(field,sep,c[field].rstrip()))
 
     def on_iopub_msg(self, m):
         t = m['header'].get('msg_type',None)
-        content = m['content']
+        c = m['content']
 
         if t == 'status':
-            status = content['execution_state']
+            status = c['execution_state']
             if status == 'busy':
                 #FIXME: export a hook for airline etc instead
                 self.buf.name = '[ipython-busy]'
             else:
                 self.buf.name = '[ipython]'
         elif t == 'pyin':
-            no = content['execution_count']
-            code = content['code']
-            self.append_outbuf('\nIn[{}]: {}\n'.format(no, code.rstrip()))
+            prompt = 'In[{}]: '.format(c['execution_count'])
+            code = c['code'].rstrip().replace('\n','\n'+' '*len(prompt))
+            self.append_outbuf('\n{}{}\n'.format(prompt, code))
         elif t == 'pyout':
-            no = content['execution_count']
-            res = content['data']['text/plain']
+            no = c['execution_count']
+            res = c['data']['text/plain']
             self.append_outbuf('Out[{}]: {}\n'.format(no, res.rstrip()))
+        elif t == 'pyerr':
+            #TODO: this should be made language specific
+            # as the amt of info in 'traceback' differs
+            self.append_outbuf('\n'.join(c['traceback']) + '\n')
         elif t == 'stream':
-            self.append_outbuf(content['data'])
+            #perhaps distinguish stderr using gutter marks?
+            self.append_outbuf(c['data'])
         else:
-            self.append_outbuf('{!s}: {!r}\n'.format(t, content))
+            self.append_outbuf('{!s}: {!r}\n'.format(t, c))
 
     def on_shell_msg(self, m):
         msg_id = m['parent_header']['msg_id']
@@ -167,7 +201,7 @@ class IPythonPlugin(object):
         return 0
 
     def run(self):
-        while True: #FIXME: select instead
+        while True: #FIXME: use push_message instead
             self.do_ev()
             sleep(0.005)
 
@@ -185,6 +219,6 @@ def test_ipython(nvpath, argv):
 
 if __name__ == "__main__":
     vim = neovim.connect(sys.argv[1])
-    IPythonPlugin(vim).run()
-
-        
+    p = IPythonPlugin(vim)
+    p.connect(sys.argv[2:])
+    p.run()
