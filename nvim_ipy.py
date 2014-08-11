@@ -1,4 +1,5 @@
 from __future__ import print_function, division
+from threading import Thread
 from time import sleep
 import os, sys
 import json
@@ -12,10 +13,11 @@ from IPython.consoleapp import IPythonConsoleApp
 # from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
 strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
 
-class IPythonVimApp(IPythonConsoleApp, BaseIPythonApplication):
+class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
     def initialize(self, argv):
-        #TODO: find out the proper way of doing this
-        BaseIPythonApplication.initialize(self, argv)
+        #IPython: why not name these differently
+        # if mro is not followed anyway?
+        super(IPythonVimApp, self).initialize(argv)
         IPythonConsoleApp.initialize(self, argv)
 
 class IPythonPlugin(object):
@@ -80,8 +82,8 @@ class IPythonPlugin(object):
         self.kc = self.ip_app.kernel_client
         self.sc = self.kc.shell_channel
         self.has_connection = True
-
         self.handle(self.sc.kernel_info(), self.on_kernel_info)
+        self.run_kernel_events()
 
     def on_kernel_info(self, reply):
         c = reply['content']
@@ -122,11 +124,11 @@ class IPythonPlugin(object):
     def ignore(self, msg_id):
         self.handle(msg_id, None)
 
-    def on_ipy_run(self, msg):
-        sel = self.get_selection(msg.arg[0])
+    def on_ipy_run(self, arg):
+        sel = self.get_selection(arg[0])
         self.ignore(self.sc.execute(sel))
 
-    def on_ipy_complete(self, msg):
+    def on_ipy_complete(self, arg):
         line = self.vim.current.line
         #FIXME: (upstream) this sometimes get wrong if 
         #completi:g just after entering insert mode:
@@ -141,10 +143,10 @@ class IPythonPlugin(object):
             self.vim.send_command("call complete({}, {})".format(start,matches))
         self.handle(self.sc.complete('', line, pos), on_reply)
 
-    def on_ipy_objinfo(self, msg):
-        word = msg.arg[0]
+    def on_ipy_objinfo(self, arg):
+        word = arg[0]
         try:
-            level = msg.arg[1]
+            level = arg[1]
         except IndexError:
             level = 0
         self.handle(self.sc.object_info(word, level), self.on_objinfo_reply)
@@ -208,49 +210,35 @@ class IPythonPlugin(object):
         if handler is not None:
             handler(m)
 
-    def do_nvim_ev(self,timeout=None):
-        try:
-            msg = self.vim.next_message(timeout)
-        except NameError: #FIXME: upstream should emit TimeoutError
-            return
-        method = "on_" + msg.name
-        if hasattr(self, method):
-            getattr(self, method)(msg)
-        else:
-            print("warning: ignore", msg.name)
-        return 0 #inputhook shall return 0
+    def run(self):
+        while True:
+            msg = self.vim.next_message()
+            print(msg)
+            kind,name,arg = msg
+            method = "on_" + name
+            if hasattr(self, method):
+                getattr(self, method)(arg)
+            else:
+                print("warning: ignore", msg.name)
 
     def do_kernel_ev(self):
-        while self.kc.iopub_channel.msg_ready():
-            msg = self.kc.iopub_channel.get_msg()
-            self.on_iopub_msg(msg)
+        # TODO: select instead
+        while True:
+            while self.kc.iopub_channel.msg_ready():
+                msg = self.kc.iopub_channel.get_msg()
+                print(msg)
+                self.vim.post("iopub_msg", msg)
 
-        while self.sc.msg_ready():
-            msg = self.sc.get_msg()
-            self.on_shell_msg(msg)
-
-    def do_ev(self):
-        self.do_nvim_ev(0)
-        if self.has_connection: self.do_kernel_ev()
-        return 0
-
-    def run(self):
-        while True: #FIXME: use push_message instead
-            self.do_ev()
+            while self.sc.msg_ready():
+                msg = self.sc.get_msg()
+                print(msg)
+                self.vim.post("shell_msg", msg)
             sleep(0.005)
 
-    # debug ipython client plugint using ipython console...
-    def ipython_inputhook_register(self):
-        from IPython.lib.inputhook import inputhook_manager
-        inputhook_manager.set_inputhook(lambda: self.do_ev())
+    def run_kernel_events(self):
+        self._ipy_thread = Thread(target=self.do_kernel_ev)
+        self._ipy_thread.start()
         
-def test_ipython(nvpath, argv):
-    vim = neovim.connect(nvpath)
-    p = IPythonPlugin(vim)
-    p.ipython_inputhook_register()
-    p.connect(argv)
-    return vim, p
-
 if __name__ == "__main__":
     vim = neovim.connect(sys.argv[1])
     p = IPythonPlugin(vim)
