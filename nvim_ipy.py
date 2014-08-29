@@ -9,6 +9,7 @@ import IPython
 from IPython.kernel import KernelManager, find_connection_file
 from IPython.core.application import BaseIPythonApplication
 from IPython.consoleapp import IPythonConsoleApp
+from IPython import embed
 
 # from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
 strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
@@ -50,16 +51,12 @@ class IPythonPlugin(object):
         # TODO: replace with some fancy syntax marks instead
         data = strip_ansi.sub('', data)
         lastline = self.buf[-1]
+
         txt = lastline + data
         self.buf[-1:] = txt.split("\n") # not splitlines
         for w in self.vim.windows:
             if w.buffer == self.buf:
-                w0 = self.vim.current.window
-                #FIXME: (upstream) cursor pos is only updated in current window!
-                self.vim.current.window = w
                 w.cursor = [len(self.buf), int(1e9)]
-                self.vim.current.window = w0
-
 
     def get_selection(self, kind):
         vim = self.vim
@@ -176,6 +173,7 @@ class IPythonPlugin(object):
         c = m['content']
 
         if t == 'status':
+            return # this glitches with airline presently
             status = c['execution_state']
             if status == 'busy':
                 #FIXME: export a hook for airline etc instead
@@ -213,7 +211,6 @@ class IPythonPlugin(object):
     def run(self):
         while True:
             msg = self.vim.next_message()
-            print(msg)
             kind,name,arg = msg
             method = "on_" + name
             if hasattr(self, method):
