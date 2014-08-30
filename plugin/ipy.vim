@@ -1,11 +1,19 @@
-" TODO: make configuarble
-nnoremap <F5> :call send_event(0, "ipy_run",['line'])<cr>
-vnoremap <F5> :<c-u>call send_event(0, "ipy_run",['visual'])<cr>
-inoremap <C-Space> <c-o>:<c-u>call send_event(0, "ipy_complete",[])<cr>
-noremap <F8> :call send_event(0, "ipy_interrupt", [])<cr>
+nnoremap <Plug>(IPy-RunLine) :call send_event(0, "ipy_run",'line')<cr>
+vnoremap <Plug>(IPy-RunLine) :<c-u>call send_event(0, "ipy_run",'visual')<cr>
+inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call send_event(0, "ipy_complete")<cr>
+noremap <Plug>(IPy-Interrupt) :call send_event(0, "ipy_interrupt")<cr>
 
-map <Plug>ch:un <F5>
-imap <Plug>ch:eu <C-Space>
-map <Plug>ch:qk <F8>
+function! IPyRun(code)
+    call send_event(0, "ipy_run", ['code', a:code])
+endfunction
 
+if !exists('g:nvim_ipy_perform_mappings')
+    let g:nvim_ipy_perform_mappings = 1
+endif
+
+if g:nvim_ipy_perform_mappings
+    map <silent> <F5>           <Plug>(IPy-RunLine)
+    imap <silent> <C-Space> <Plug>(IPy-Complete)
+    map <silent> <F8> <Plug>(IPy-Interrupt)
+endif
 

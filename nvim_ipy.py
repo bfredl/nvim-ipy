@@ -38,12 +38,14 @@ class IPythonPlugin(object):
             if "[ipython" in b.name:
                 self.buf = b
                 return
+        w0 = vim.current.window
         vim.command(":new")
         buf = vim.current.buffer
         buf.options["buflisted"] = False
         buf.options["swapfile"] = False
         buf.options["buftype"] = "nofile"
         buf.name = "[ipython]"
+        vim.current.window = w0
         self.buf = buf
 
     # FIXME: encoding
@@ -69,6 +71,8 @@ class IPythonPlugin(object):
             return txt
         elif kind == "line":
             return vim.current.line + '\n'
+        else:
+            raise ValueError("invalid object", kind)
 
     # TODO: perhaps expose also the "programmatic" connection api
     def connect(self, argv):
@@ -137,7 +141,7 @@ class IPythonPlugin(object):
             #TODO: check if position is still valid
             start = pos-len(content['matched_text'])+1
             matches = json.dumps(content['matches'])
-            self.vim.send_command("call complete({}, {})".format(start,matches))
+            self.vim.command("call complete({}, {})".format(start,matches))
         self.handle(self.sc.complete('', line, pos), on_reply)
 
     def on_ipy_objinfo(self, arg):
