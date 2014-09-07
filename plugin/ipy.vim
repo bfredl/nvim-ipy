@@ -1,10 +1,13 @@
-nnoremap <Plug>(IPy-RunLine) :call send_event(0, "ipy_run",'line')<cr>
+command! -nargs=* IPython :call send_event(0, "ipy_connect", <f-args>)
+command! -nargs=* IJulia :call send_event(0, "ipy_connect", "--profile", "julia")
+
+nnoremap <Plug>(IPy-RunLine) :call send_event(0, "ipy_run", 'line')<cr>
 vnoremap <Plug>(IPy-RunLine) :<c-u>call send_event(0, "ipy_run",'visual')<cr>
 inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call send_event(0, "ipy_complete")<cr>
 noremap <Plug>(IPy-Interrupt) :call send_event(0, "ipy_interrupt")<cr>
 
 function! IPyRun(code)
-    call send_event(0, "ipy_run", ['code', a:code])
+    call send_event(0, "ipy_run", 'code', a:code)
 endfunction
 
 if !exists('g:nvim_ipy_perform_mappings')
@@ -16,4 +19,5 @@ if g:nvim_ipy_perform_mappings
     imap <silent> <C-Space> <Plug>(IPy-Complete)
     map <silent> <F8> <Plug>(IPy-Interrupt)
 endif
+
 
