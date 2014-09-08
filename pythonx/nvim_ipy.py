@@ -141,10 +141,13 @@ class IPythonPlugin(object):
         self.connect(args)
 
     def on_ipy_run(self, obj, *data):
-        sel = self.get_selection(obj)
-        self.ignore(self.sc.execute(sel))
+        if obj == "code":
+            code, = data
+        else:
+            code = self.get_selection(obj)
+        self.ignore(self.sc.execute(code))
 
-    def on_ipy_complete(self, arg):
+    def on_ipy_complete(self):
         line = self.vim.current.line
         #FIXME: (upstream) this sometimes get wrong if 
         #completi:g just after entering insert mode:
@@ -159,12 +162,7 @@ class IPythonPlugin(object):
             self.vim.command("call complete({}, {})".format(start,matches))
         self.handle(self.sc.complete('', line, pos), on_reply)
 
-    def on_ipy_objinfo(self, arg):
-        word = arg[0]
-        try:
-            level = arg[1]
-        except IndexError:
-            level = 0
+    def on_ipy_objinfo(self, word, level=0):
         self.handle(self.sc.object_info(word, level), self.on_objinfo_reply)
 
     def on_objinfo_reply(self, reply):
@@ -173,9 +171,10 @@ class IPythonPlugin(object):
             self.append_outbuf("not found: {}\n".format(o['name']))
             return
         #TODO: enable subqueries like "what is the type", interactive argspec (like jedi-vim) etc
+        self.append_outbuf("\n")
         for field in ['name','namespace','type_name','base_class','length','string_form',
             'file','definition','source','docstring']:
-            if field not in c:
+            if c.get(field) is None:
                 continue
             sep = '\n' if c[field].count('\n') else ' '
             #TODO: option for separate doc buffer
