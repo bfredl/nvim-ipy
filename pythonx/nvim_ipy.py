@@ -111,7 +111,8 @@ class IPythonPlugin(object):
                     break
             else:
                 return #reopen window?
-        vim.command("set ft={}".format(lang))
+        #unfortunately this crashes inside plugin host
+        #vim.command("set ft={}".format(lang))
         try:
             ipy_version = c['ipython_version']
         except KeyError:
@@ -131,8 +132,8 @@ class IPythonPlugin(object):
     def disp_status(self, status):
         self.vim.vars['ipy_status'] = status
         # TODO: how cleanly notify vimscript?
-        if self.vim.eval("exists('*OnIpyStatus')"):
-            self.vim.command("call OnIpyStatus()")
+        #if self.vim.eval("exists('*OnIpyStatus')"):
+        #    self.vim.command("call OnIpyStatus()")
 
     #TODO: in the best of all possible worlds one should be able to integrate w/the
     # pyuv/greenlet to implement async handling of calls to other sources like IPython
@@ -148,7 +149,7 @@ class IPythonPlugin(object):
 
     def on_ipy_run(self, obj, *data):
         if not self.km.is_alive():
-            choice = vim.eval("confirm('Kernel died. Restart?', '&Yes\n&No')")
+            choice = int(self.vim.eval("confirm('Kernel died. Restart?', '&Yes\n&No')"))
             if choice == 1:
                 self.km.restart_kernel(True)
             return # 
@@ -163,8 +164,7 @@ class IPythonPlugin(object):
         #FIXME: (upstream) this sometimes get wrong if 
         #completi:g just after entering insert mode:
         #pos = self.vim.current.buffer.mark(".")[1]+1
-        pos = self.vim.eval("col('.')")-1
-        #debug(line[:pos])
+        pos = int(self.vim.eval("col('.')"))-1
         def on_reply(reply):
             content = reply["content"]
             #TODO: check if position is still valid
@@ -265,13 +265,11 @@ class IPythonPlugin(object):
                 self.vim.post("shell_msg", [msg])
             sleep(0.005)
 
-# running inside host in principle works,
-# but too many a segfault :(
-if False:
+if True:
     class NvimIPython(IPythonPlugin):
         pass
 
 if __name__ == "__main__":
-    vim = neovim.connect(environ["NEOVIM_LISTEN_ADDRESS"])
-    p = IPythonPlugin(vim)
+    v = neovim.connect(environ["NEOVIM_LISTEN_ADDRESS"])
+    p = IPythonPlugin(v)
     p.run()
