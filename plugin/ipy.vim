@@ -22,11 +22,14 @@ if !exists('g:nvim_ipy_perform_mappings')
     let g:nvim_ipy_perform_mappings = 1
 endif
 
+let g:ipy_status = ""
+
 if g:nvim_ipy_perform_mappings
     map <silent> <F5>           <Plug>(IPy-RunLine)
     imap <silent> <C-Space> <Plug>(IPy-Complete)
     map <silent> <F8> <Plug>(IPy-Interrupt)
     map <silent> <Leader>d :call IPyObjinfo()
+    set titlestring=%t%(\ %M%)%(\ (%{expand(\"%:p:h\")})%)%(\ %a%)%(\ -\ %{g:ipy_status}%)
 endif
 
 

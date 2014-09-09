@@ -127,8 +127,13 @@ class IPythonPlugin(object):
         self.buf[:0] = banner
         vim.current.window = w0
 
+    def disp_status(self, status):
+        self.vim.vars['ipy_status'] = status
+        # TODO: how cleanly notify vimscript?
+        if self.vim.eval("exists('*OnIpyStatus')"):
+            self.vim.command("call OnIpyStatus()")
 
-    #TODO: in the best of all possible worlds one should be able to integrate w/the 
+    #TODO: in the best of all possible worlds one should be able to integrate w/the
     # pyuv/greenlet to implement async handling of calls to other sources like IPython
     def handle(self, msg_id, handler):
         #FIXME: add timeout when refactoring event code
@@ -191,13 +196,8 @@ class IPythonPlugin(object):
         c = m['content']
 
         if t == 'status':
-            return # this glitches with airline presently
             status = c['execution_state']
-            if status == 'busy':
-                #FIXME: export a hook for airline etc instead
-                self.buf.name = '[ipython-busy]'
-            else:
-                self.buf.name = '[ipython]'
+            self.disp_status(status)
         elif t == 'pyin':
             prompt = 'In[{}]: '.format(c['execution_count'])
             code = c['code'].rstrip().replace('\n','\n'+' '*len(prompt))
