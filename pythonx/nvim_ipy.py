@@ -89,6 +89,7 @@ class IPythonPlugin(object):
         self.ip_app = IPythonVimApp()
         self.ip_app.initialize(argv)
         self.kc = self.ip_app.kernel_client
+        self.km = self.ip_app.kernel_manager
         self.sc = self.kc.shell_channel
         self.has_connection = True
         self.handle(self.sc.kernel_info(), self.on_kernel_info)
@@ -146,6 +147,11 @@ class IPythonPlugin(object):
         self.connect(args)
 
     def on_ipy_run(self, obj, *data):
+        if not self.km.is_alive():
+            choice = vim.eval("confirm('Kernel died. Restart?', '&Yes\n&No')")
+            if choice == 1:
+                self.km.restart_kernel(True)
+            return # 
         if obj == "code":
             code, = data
         else:
@@ -226,6 +232,9 @@ class IPythonPlugin(object):
         if handler is not None:
             handler(m)
 
+    def on_kernel_dead(self):
+        self.disp_status("DEAD")
+
     def run(self):
         while True:
             msg = self.vim.next_message()
@@ -234,11 +243,17 @@ class IPythonPlugin(object):
             if hasattr(self, method):
                 getattr(self, method)(*args)
             else:
-                debug("warning: ignore %s", msg.name)
+                debug("warning: ignore %s", name)
 
     def do_kernel_ev(self):
         # TODO: select instead
+        was_alive = True
         while True:
+            is_alive = self.km.is_alive()
+            if not is_alive and was_alive:
+                self.vim.post("kernel_dead", [])
+            was_alive = is_alive
+
             while self.kc.iopub_channel.msg_ready():
                 msg = self.kc.iopub_channel.get_msg()
                 debug(repr(msg))
