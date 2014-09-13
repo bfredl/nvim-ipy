@@ -235,16 +235,6 @@ class IPythonPlugin(object):
     def on_kernel_dead(self):
         self.disp_status("DEAD")
 
-    def run(self):
-        while True:
-            msg = self.vim.next_message()
-            kind,name,args = msg
-            method = "on_" + name
-            if hasattr(self, method):
-                getattr(self, method)(*args)
-            else:
-                debug("warning: ignore %s", name)
-
     def do_kernel_ev(self):
         # TODO: select instead
         was_alive = True
@@ -269,7 +259,9 @@ if True:
     class NvimIPython(IPythonPlugin):
         pass
 
+# run alone in a separate host, for debugs
 if __name__ == "__main__":
-    v = neovim.connect(environ["NEOVIM_LISTEN_ADDRESS"])
-    p = IPythonPlugin(v)
-    p.run()
+    v = neovim.connect(environ["NEOVIM_LISTEN_ADDRESS"], vim_compatible = True)
+    host = neovim.PluginHost(v, [IPythonPlugin])
+    host.install_plugins()
+    host.run()

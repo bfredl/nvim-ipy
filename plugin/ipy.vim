@@ -1,5 +1,9 @@
-command! -nargs=* IPython :call send_event(0, "ipy_connect", <f-args>)
-command! -nargs=* IJulia :call send_event(0, "ipy_connect", "--profile", "julia")
+function IPyConnect(...)
+    :call call('send_event', [0, "ipy_connect"] + a:000)
+endfunction
+
+command! -nargs=* IPython :call IPyConnect()
+command! -nargs=* IJulia :call IPyConnect("--profile", "julia")
 
 nnoremap <Plug>(IPy-RunLine) :call send_event(0, "ipy_run", 'line')<cr>
 vnoremap <Plug>(IPy-RunLine) :<c-u>call send_event(0, "ipy_run",'visual')<cr>
