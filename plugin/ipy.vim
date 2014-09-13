@@ -5,14 +5,21 @@ endfunction
 command! -nargs=* IPython :call IPyConnect()
 command! -nargs=* IJulia :call IPyConnect("--profile", "julia")
 
-nnoremap <Plug>(IPy-RunLine) :call send_event(0, "ipy_run", 'line')<cr>
-vnoremap <Plug>(IPy-RunLine) :<c-u>call send_event(0, "ipy_run",'visual')<cr>
+function! IPyRun(code)
+    call send_event(0, "ipy_run", a:code)
+endfunction
+
+function! IPyRunSel(sel)
+    "this is blocking so that selection could be deleted, for instance
+    call send_call(g:ipy_channel, "ipy_run_selection", a:sel)
+endfunction
+
+
+nnoremap <Plug>(IPy-RunLine) :call IPyRunSel('line')<cr>
+vnoremap <Plug>(IPy-RunLine) :<c-u>call IPyRunSel('vline')<cr>
 inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call send_event(0, "ipy_complete")<cr>
 noremap <Plug>(IPy-Interrupt) :call send_event(0, "ipy_interrupt")<cr>
 
-function! IPyRun(code)
-    call send_event(0, "ipy_run", 'code', a:code)
-endfunction
 
 function! IPyObjinfo()
     let isk_save = &isk

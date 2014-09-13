@@ -33,6 +33,7 @@ class IPythonPlugin(object):
         self.vim.subscribe("ipy_complete")
         self.vim.subscribe("ipy_objinfo")
         self.vim.subscribe("ipy_interrupt")
+        self.vim.vars['ipy_channel'] = self.vim.channel_id
         self.buf = None
         self.has_connection = False
         self.pending_shell_msgs = {}
@@ -67,15 +68,16 @@ class IPythonPlugin(object):
 
     def get_selection(self, kind):
         vim = self.vim
-        if kind == "visual":
+        if kind == "line":
+            return vim.current.line + '\n'
+        elif kind == "vline":
             b = vim.current.buffer
             start = b.mark('<')
             end = b.mark('>')
             lines = b[start[0]-1:end[0]]
             txt = '\n'.join(lines) + '\n'
             return txt
-        elif kind == "line":
-            return vim.current.line + '\n'
+        #TODO: char visual
         else:
             raise ValueError("invalid object", kind)
 
@@ -147,17 +149,18 @@ class IPythonPlugin(object):
     def on_ipy_connect(self, *args):
         self.connect(args)
 
-    def on_ipy_run(self, obj, *data):
+    def on_ipy_run(self, code):
         if not self.km.is_alive():
             choice = int(self.vim.eval("confirm('Kernel died. Restart?', '&Yes\n&No')"))
             if choice == 1:
                 self.km.restart_kernel(True)
-            return # 
-        if obj == "code":
-            code, = data
-        else:
-            code = self.get_selection(obj)
+            return
         self.ignore(self.sc.execute(code))
+
+    # @request_handler()
+    def ipy_run_selection(self, sel):
+        code = self.get_selection(sel)
+        self.vim.post("ipy_run", [code])
 
     def on_ipy_complete(self):
         line = self.vim.current.line
