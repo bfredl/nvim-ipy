@@ -1,5 +1,5 @@
 #temporary hack; nvim_ipy will run inside plugin_host
-export NEOVIM_LISTEN_ADDRESS=$XDG_RUNTIME_DIR/nvim_$$
+export NVIM_LISTEN_ADDRESS=$XDG_RUNTIME_DIR/nvim_$$
 urxvt -e nvim -c "call NvimIPyMappings()"&
 python2 pythonx/nvim_ipy.py $*
 

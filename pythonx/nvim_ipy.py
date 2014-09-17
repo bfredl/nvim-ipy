@@ -194,7 +194,7 @@ class IPythonPlugin(object):
             #TODO: option for separate doc buffer
             self.append_outbuf('{}:{}{}\n'.format(field,sep,c[field].rstrip()))
 
-    def on_ipy_interrupt(self, msg):
+    def on_ipy_interrupt(self):
         # FIXME: only works on kernel we did start
         # steal vim-ipython's getpid workaround?
         self.ip_app.kernel_manager.interrupt_kernel()
@@ -264,7 +264,7 @@ if True:
 
 # run alone in a separate host, for debugs
 if __name__ == "__main__":
-    v = neovim.connect(environ["NEOVIM_LISTEN_ADDRESS"], vim_compatible = True)
+    v = neovim.connect(environ["NVIM_LISTEN_ADDRESS"], vim_compatible = True)
     host = neovim.PluginHost(v, [IPythonPlugin])
     host.install_plugins()
     host.run()
