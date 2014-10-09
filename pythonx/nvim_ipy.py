@@ -18,6 +18,8 @@ strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
 
 #logging.basicConfig(filename='example.log',level=logging.DEBUG)
 
+#debug = print
+
 class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
     def initialize(self, argv):
         #IPython: why not name these differently
@@ -160,7 +162,7 @@ class IPythonPlugin(object):
     # @request_handler()
     def ipy_run_selection(self, sel):
         code = self.get_selection(sel)
-        self.vim.post("ipy_run", [code])
+        self.vim.session.post("ipy_run", code)
 
     def on_ipy_complete(self):
         line = self.vim.current.line
@@ -244,18 +246,18 @@ class IPythonPlugin(object):
         while True:
             is_alive = self.km.is_alive()
             if not is_alive and was_alive:
-                self.vim.post("kernel_dead", [])
+                self.vim.session.post("kernel_dead")
             was_alive = is_alive
 
             while self.kc.iopub_channel.msg_ready():
                 msg = self.kc.iopub_channel.get_msg()
                 debug(repr(msg))
-                self.vim.post("iopub_msg", [msg])
+                self.vim.session.post("iopub_msg", msg)
 
             while self.sc.msg_ready():
                 msg = self.sc.get_msg()
                 debug(repr(msg))
-                self.vim.post("shell_msg", [msg])
+                self.vim.session.post("shell_msg", msg)
             sleep(0.005)
 
 if True:
@@ -264,7 +266,17 @@ if True:
 
 # run alone in a separate host, for debugs
 if __name__ == "__main__":
-    v = neovim.connect(environ["NVIM_LISTEN_ADDRESS"], vim_compatible = True)
-    host = neovim.PluginHost(v, [IPythonPlugin])
+    class NvimIPython(IPythonPlugin):
+        pass
+    handler = logging.StreamHandler()
+    logging.root.addHandler(handler)
+    #logging.root.setLevel(logging.DEBUG)
+
+    from neovim import stdio_session, PluginHost, Nvim, socket_session
+    nvim = Nvim.from_session(socket_session(environ["NVIM_LISTEN_ADDRESS"]))
+    host =  PluginHost(nvim, preloaded=[NvimIPython])
     host.install_plugins()
-    host.run()
+    try:
+        host.run()
+    except KeyboardInterrupt:
+        pass#exit
