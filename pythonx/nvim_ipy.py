@@ -224,6 +224,9 @@ class IPythonPlugin(object):
         elif t == 'stream':
             #perhaps distinguish stderr using gutter marks?
             self.append_outbuf(c['data'])
+        elif t == 'display_data':
+            d = c['data']['text/plain']
+            self.append_outbuf(d + '\n')
         else:
             self.append_outbuf('{!s}: {!r}\n'.format(t, c))
 

@@ -2,7 +2,7 @@ function! IPyConnect(...)
     :call call('rpcnotify', [0, "ipy_connect"] + a:000)
 endfunction
 
-command! -nargs=* IPython :call IPyConnect()
+command! -nargs=* IPython :call IPyConnect(<f-args>)
 command! -nargs=* IJulia :call IPyConnect("--profile", "julia")
 
 function! IPyRun(code)
