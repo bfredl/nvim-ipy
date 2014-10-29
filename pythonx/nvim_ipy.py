@@ -157,7 +157,14 @@ class IPythonPlugin(object):
             if choice == 1:
                 self.km.restart_kernel(True)
             return
-        self.ignore(self.sc.execute(code))
+        self.handle(self.sc.execute(code), self.on_execute_reply)
+
+    def on_execute_reply(self, reply):
+        payload = reply['payload']
+        for p in payload:
+            if p.get("source") == "page":
+                # TODO: if this is long, open separate window
+                self.append_outbuf(p['text'])
 
     # @request_handler()
     def ipy_run_selection(self, sel):
@@ -227,7 +234,8 @@ class IPythonPlugin(object):
         elif t == 'display_data':
             d = c['data']['text/plain']
             self.append_outbuf(d + '\n')
-        else:
+
+        if self.vim.vars.get('ipy_io_debug'):
             self.append_outbuf('{!s}: {!r}\n'.format(t, c))
 
     def on_shell_msg(self, m):
