@@ -1,7 +1,7 @@
 from __future__ import print_function, division
 from threading import Thread
 from time import sleep
-from functools import partial
+from functools import partial, wraps
 import os, sys
 import json
 import re
@@ -17,25 +17,40 @@ from logging import debug
 from os import environ
 # from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
 strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
+import greenlet
 
 #logging.basicConfig(filename='example.log',level=logging.DEBUG)
+
+# functools is missing "curry", easily fixed:
+curry = partial(partial, partial)
 
 class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
     # don't use blocking client; we override call_handlers below
     kernel_client_class = KernelClient
     def init_kernel_client(self):
         self.kernel_client = self.kernel_manager.client()
+        post = curry(self.target)
         # NOT SURE if "monkey patching" or just "configuration"
-        self.kernel_client.shell_channel.call_handlers = partial(self.target, "shell_msg")
-        self.kernel_client.iopub_channel.call_handlers = partial(self.target, "iopub_msg")
-        self.kernel_client.stdin_channel.call_handlers = partial(self.target, "stdin_msg")
-        self.kernel_client.hb_channel.call_handlers = partial(self.target, "hb_msg")
+        self.kernel_client.shell_channel.call_handlers = post("shell_msg")
+        self.kernel_client.iopub_channel.call_handlers = post("iopub_msg")
+        self.kernel_client.stdin_channel.call_handlers = post("stdin_msg")
+        self.kernel_client.hb_channel.call_handlers = post("hb_msg")
         self.kernel_client.start_channels()
 
     def initialize(self, target, argv):
         self.target = target
         super(IPythonVimApp, self).initialize(argv)
         IPythonConsoleApp.initialize(self, argv)
+
+# this is not strictly neccesary, as nvim client lib already wraps
+# every notification in its own greenlet, but this ensures the code still
+# works even if nvim_client stops using greenlets
+def ipy_async(f):
+    @wraps(f)
+    def new_f(*a,**b):
+        gr = greenlet.greenlet(f)
+        return gr.switch(*a, **b)
+    return new_f
 
 class IPythonPlugin(object):
     def __init__(self, vim):
@@ -144,11 +159,14 @@ class IPythonPlugin(object):
     def disp_status(self, status):
         self.vim.vars['ipy_status'] = status
 
-    #TODO: in the best of all possible worlds one should be able to integrate w/the
-    # pyuv/greenlet to implement async handling of calls to other sources like IPython
     def handle(self, msg_id, handler):
-        #FIXME: add timeout when refactoring event code
         self.pending_shell_msgs[msg_id] = handler
+
+    def waitfor(self, msg_id, retval=None):
+        #FIXME: add some kind of timeout
+        gr = greenlet.getcurrent()
+        self.pending_shell_msgs[msg_id] = gr
+        return gr.parent.switch(retval)
 
     def ignore(self, msg_id):
         self.handle(msg_id, None)
@@ -177,24 +195,25 @@ class IPythonPlugin(object):
         code = self.get_selection(sel)
         self.vim.session.post("ipy_run", code)
 
+    @ipy_async
     def on_ipy_complete(self):
         line = self.vim.current.line
         #FIXME: (upstream) this sometimes get wrong if 
         #completi:g just after entering insert mode:
         #pos = self.vim.current.buffer.mark(".")[1]+1
         pos = int(self.vim.eval("col('.')"))-1
-        def on_reply(reply):
-            content = reply["content"]
-            #TODO: check if position is still valid
-            start = pos-len(content['matched_text'])+1
-            matches = json.dumps(content['matches'])
-            self.vim.command("call complete({}, {})".format(start,matches))
-        self.handle(self.sc.complete('', line, pos), on_reply)
 
+        reply = self.waitfor(self.sc.complete('', line, pos))
+        content = reply["content"]
+        #TODO: check if position is still valid
+        start = pos-len(content['matched_text'])+1
+        matches = json.dumps(content['matches'])
+        self.vim.command("call complete({}, {})".format(start,matches))
+
+    @ipy_async
     def on_ipy_objinfo(self, word, level=0):
-        self.handle(self.sc.object_info(word, level), self.on_objinfo_reply)
+        reply = self.waitfor(self.sc.object_info(word, level))
 
-    def on_objinfo_reply(self, reply):
         c = reply['content']
         if not c['found']:
             self.append_outbuf("not found: {}\n".format(o['name']))
@@ -251,7 +270,10 @@ class IPythonPlugin(object):
         except KeyError:
             debug('unexpected shell msg: %r', m)
             return
-        if handler is not None:
+        if isinstance(handler, greenlet.greenlet):
+            handler.parent = greenlet.getcurrent()
+            handler.switch(m)
+        elif handler is not None:
             handler(m)
 
     #this gets called when heartbeat is lost
