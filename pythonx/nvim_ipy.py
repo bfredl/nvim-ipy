@@ -1,12 +1,14 @@
 from __future__ import print_function, division
 from threading import Thread
 from time import sleep
+from functools import partial
 import os, sys
 import json
 import re
 import neovim
 import IPython
 from IPython.kernel import KernelManager, find_connection_file
+from IPython.kernel.client import KernelClient
 from IPython.core.application import BaseIPythonApplication
 from IPython.consoleapp import IPythonConsoleApp
 from IPython import embed
@@ -18,12 +20,20 @@ strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
 
 #logging.basicConfig(filename='example.log',level=logging.DEBUG)
 
-#debug = print
-
 class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
-    def initialize(self, argv):
-        #IPython: why not name these differently
-        # if mro is not followed anyway?
+    # don't use blocking client; we override call_handlers below
+    kernel_client_class = KernelClient
+    def init_kernel_client(self):
+        self.kernel_client = self.kernel_manager.client()
+        # NOT SURE if "monkey patching" or just "configuration"
+        self.kernel_client.shell_channel.call_handlers = partial(self.target, "shell_msg")
+        self.kernel_client.iopub_channel.call_handlers = partial(self.target, "iopub_msg")
+        self.kernel_client.stdin_channel.call_handlers = partial(self.target, "stdin_msg")
+        self.kernel_client.hb_channel.call_handlers = partial(self.target, "hb_msg")
+        self.kernel_client.start_channels()
+
+    def initialize(self, target, argv):
+        self.target = target
         super(IPythonVimApp, self).initialize(argv)
         IPythonConsoleApp.initialize(self, argv)
 
@@ -88,18 +98,16 @@ class IPythonPlugin(object):
     def connect(self, argv):
         if self.buf is None:
             self.create_outbuf()
-        # Probably more 'idiomatic' to subclass this,
-        # BUT the "fragile baseclass' problem
+
         self.ip_app = IPythonVimApp()
-        self.ip_app.initialize(argv)
+        # messages will be recieved in IPython's event loop
+        # post them to ours
+        self.ip_app.initialize(self.vim.session.post, argv)
         self.kc = self.ip_app.kernel_client
         self.km = self.ip_app.kernel_manager
         self.sc = self.kc.shell_channel
         self.has_connection = True
         self.handle(self.sc.kernel_info(), self.on_kernel_info)
-        # TODO: handle existing thread?
-        self._ipy_thread = Thread(target=self.do_kernel_ev)
-        self._ipy_thread.start()
 
     def on_kernel_info(self, reply):
         vim = self.vim
@@ -135,9 +143,6 @@ class IPythonPlugin(object):
 
     def disp_status(self, status):
         self.vim.vars['ipy_status'] = status
-        # TODO: how cleanly notify vimscript?
-        #if self.vim.eval("exists('*OnIpyStatus')"):
-        #    self.vim.command("call OnIpyStatus()")
 
     #TODO: in the best of all possible worlds one should be able to integrate w/the
     # pyuv/greenlet to implement async handling of calls to other sources like IPython
@@ -160,7 +165,8 @@ class IPythonPlugin(object):
         self.handle(self.sc.execute(code), self.on_execute_reply)
 
     def on_execute_reply(self, reply):
-        payload = reply['payload']
+        content = reply['content']
+        payload = content['payload']
         for p in payload:
             if p.get("source") == "page":
                 # TODO: if this is long, open separate window
@@ -248,28 +254,13 @@ class IPythonPlugin(object):
         if handler is not None:
             handler(m)
 
-    def on_kernel_dead(self):
+    #this gets called when heartbeat is lost
+    def on_hb_msg(self, time_since):
         self.disp_status("DEAD")
 
-    def do_kernel_ev(self):
-        # TODO: select instead
-        was_alive = True
-        while True:
-            is_alive = self.km.is_alive()
-            if not is_alive and was_alive:
-                self.vim.session.post("kernel_dead")
-            was_alive = is_alive
+    def on_stdin_msg(self, msg):
+        pass #FIXME
 
-            while self.kc.iopub_channel.msg_ready():
-                msg = self.kc.iopub_channel.get_msg()
-                debug(repr(msg))
-                self.vim.session.post("iopub_msg", msg)
-
-            while self.sc.msg_ready():
-                msg = self.sc.get_msg()
-                debug(repr(msg))
-                self.vim.session.post("shell_msg", msg)
-            sleep(0.005)
 
 if True:
     class NvimIPython(IPythonPlugin):
