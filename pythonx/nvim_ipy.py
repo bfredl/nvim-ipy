@@ -1,25 +1,18 @@
 from __future__ import print_function, division
-from threading import Thread
-from time import sleep
 from functools import partial, wraps
 import os, sys
 import json
 import re
 import neovim
 import IPython
-from IPython.kernel import KernelManager, find_connection_file
 from IPython.kernel.client import KernelClient
 from IPython.core.application import BaseIPythonApplication
 from IPython.consoleapp import IPythonConsoleApp
-from IPython import embed
-import logging
 from logging import debug
 from os import environ
 # from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
 strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
 import greenlet
-
-#logging.basicConfig(filename='example.log',level=logging.DEBUG)
 
 # functools is missing "curry", easily fixed:
 curry = partial(partial, partial)
@@ -110,36 +103,24 @@ class IPythonPlugin(object):
 
     # TODO: perhaps expose also the "programmatic" connection api
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
+    @ipy_async
     def connect(self, argv):
+        vim = self.vim
         if self.buf is None:
             self.create_outbuf()
 
         self.ip_app = IPythonVimApp()
         # messages will be recieved in IPython's event loop
         # post them to ours
-        self.ip_app.initialize(self.vim.session.post, argv)
+        self.ip_app.initialize(vim.session.post, argv)
         self.kc = self.ip_app.kernel_client
         self.km = self.ip_app.kernel_manager
         self.sc = self.kc.shell_channel
         self.has_connection = True
-        self.handle(self.sc.kernel_info(), self.on_kernel_info)
 
-    def on_kernel_info(self, reply):
-        vim = self.vim
+        reply = self.waitfor(self.sc.kernel_info())
         c = reply['content']
         lang = c['language']
-        #FIXME: (upstream) this don't seem to trigger "set ft"
-        #self.buf.options['ft'] = lang
-        w0 = vim.current.window
-        if vim.current.buffer != self.buf:
-            for w in vim.windows:
-                if w.buffer == self.buf:
-                    vim.current.window = w
-                    break
-            else:
-                return #reopen window?
-        #unfortunately this crashes inside plugin host
-        #vim.command("set ft={}".format(lang))
         try:
             ipy_version = c['ipython_version']
         except KeyError:
@@ -154,6 +135,18 @@ class IPythonPlugin(object):
                 "",
                 ]
         self.buf[:0] = banner
+
+        #FIXME: "set ft" crashes inside plugin host
+        return
+        w0 = vim.current.window
+        if vim.current.buffer != self.buf:
+            for w in vim.windows:
+                if w.buffer == self.buf:
+                    vim.current.window = w
+                    break
+            else:
+                return #reopen window?
+        vim.command("set ft={}".format(lang))
         vim.current.window = w0
 
     def disp_status(self, status):
@@ -165,7 +158,7 @@ class IPythonPlugin(object):
     def waitfor(self, msg_id, retval=None):
         #FIXME: add some kind of timeout
         gr = greenlet.getcurrent()
-        self.pending_shell_msgs[msg_id] = gr
+        self.handle(msg_id, gr)
         return gr.parent.switch(retval)
 
     def ignore(self, msg_id):
@@ -174,15 +167,15 @@ class IPythonPlugin(object):
     def on_ipy_connect(self, *args):
         self.connect(args)
 
+    @ipy_async
     def on_ipy_run(self, code):
         if not self.km.is_alive():
             choice = int(self.vim.eval("confirm('Kernel died. Restart?', '&Yes\n&No')"))
             if choice == 1:
                 self.km.restart_kernel(True)
             return
-        self.handle(self.sc.execute(code), self.on_execute_reply)
 
-    def on_execute_reply(self, reply):
+        reply = self.waitfor(self.sc.execute(code))
         content = reply['content']
         payload = content['payload']
         for p in payload:
