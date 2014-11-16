@@ -45,14 +45,10 @@ def ipy_async(f):
         return gr.switch(*a, **b)
     return new_f
 
+@neovim.plugin
 class IPythonPlugin(object):
     def __init__(self, vim):
         self.vim = vim
-        self.vim.subscribe("ipy_connect")
-        self.vim.subscribe("ipy_run")
-        self.vim.subscribe("ipy_complete")
-        self.vim.subscribe("ipy_objinfo")
-        self.vim.subscribe("ipy_interrupt")
         self.vim.vars['ipy_channel'] = self.vim.channel_id
         self.buf = None
         self.has_connection = False
@@ -164,11 +160,14 @@ class IPythonPlugin(object):
     def ignore(self, msg_id):
         self.handle(msg_id, None)
 
-    def on_ipy_connect(self, *args):
+    @neovim.rpc_export("ipy_connect")
+    def ipy_connect(self, *args):
+        print("didconnoct")
         self.connect(args)
 
+    @neovim.rpc_export("ipy_run")
     @ipy_async
-    def on_ipy_run(self, code):
+    def ipy_run(self, code):
         if not self.km.is_alive():
             choice = int(self.vim.eval("confirm('Kernel died. Restart?', '&Yes\n&No')"))
             if choice == 1:
@@ -183,13 +182,14 @@ class IPythonPlugin(object):
                 # TODO: if this is long, open separate window
                 self.append_outbuf(p['text'])
 
-    # @request_handler()
+    @neovim.rpc_export("ipy_run_selection",sync=True)
     def ipy_run_selection(self, sel):
         code = self.get_selection(sel)
         self.vim.session.post("ipy_run", code)
 
+    @neovim.rpc_export("ipy_complete")
     @ipy_async
-    def on_ipy_complete(self):
+    def ipy_complete(self):
         line = self.vim.current.line
         #FIXME: (upstream) this sometimes get wrong if 
         #completi:g just after entering insert mode:
@@ -203,6 +203,7 @@ class IPythonPlugin(object):
         matches = json.dumps(content['matches'])
         self.vim.command("call complete({}, {})".format(start,matches))
 
+    @neovim.rpc_export("ipy_objinfo")
     @ipy_async
     def on_ipy_objinfo(self, word, level=0):
         reply = self.waitfor(self.sc.object_info(word, level))
@@ -221,12 +222,13 @@ class IPythonPlugin(object):
             #TODO: option for separate doc buffer
             self.append_outbuf('{}:{}{}\n'.format(field,sep,c[field].rstrip()))
 
+    @neovim.rpc_export("ipy_interrupt")
     def on_ipy_interrupt(self):
         # FIXME: only works on kernel we did start
         # steal vim-ipython's getpid workaround?
         self.ip_app.kernel_manager.interrupt_kernel()
 
-
+    @neovim.rpc_export("iopub_msg")
     def on_iopub_msg(self, m):
         t = m['header'].get('msg_type',None)
         c = m['content']
@@ -256,6 +258,7 @@ class IPythonPlugin(object):
         if self.vim.vars.get('ipy_io_debug'):
             self.append_outbuf('{!s}: {!r}\n'.format(t, c))
 
+    @neovim.rpc_export("shell_msg")
     def on_shell_msg(self, m):
         msg_id = m['parent_header']['msg_id']
         try:
@@ -270,30 +273,24 @@ class IPythonPlugin(object):
             handler(m)
 
     #this gets called when heartbeat is lost
+    @neovim.rpc_export("hb_msg")
     def on_hb_msg(self, time_since):
         self.disp_status("DEAD")
 
+    @neovim.rpc_export("stdin_msg")
     def on_stdin_msg(self, msg):
         pass #FIXME
 
-
-if True:
-    class NvimIPython(IPythonPlugin):
-        pass
-
 # run alone in a separate host, for debugs
 if __name__ == "__main__":
-    class NvimIPython(IPythonPlugin):
-        pass
+    from neovim import stdio_session, Host, Nvim, socket_session
+    import logging
     handler = logging.StreamHandler()
     logging.root.addHandler(handler)
-    #logging.root.setLevel(logging.DEBUG)
-
-    from neovim import stdio_session, PluginHost, Nvim, socket_session
+    logging.root.setLevel(logging.DEBUG)
     nvim = Nvim.from_session(socket_session(environ["NVIM_LISTEN_ADDRESS"]))
-    host =  PluginHost(nvim, preloaded=[NvimIPython])
-    host.install_plugins()
+    host =  Host(nvim)
     try:
-        host.run()
+        host.run([__file__])
     except KeyboardInterrupt:
         pass#exit

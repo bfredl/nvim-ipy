@@ -1,12 +1,12 @@
 function! IPyConnect(...)
-    :call call('rpcnotify', [0, "ipy_connect"] + a:000)
+    :call call('rpcnotify', [g:ipy_channel, "ipy_connect"] + a:000)
 endfunction
 
 command! -nargs=* IPython :call IPyConnect(<f-args>)
 command! -nargs=* IJulia :call IPyConnect("--profile", "julia")
 
 function! IPyRun(code)
-    call rpcnotify(0, "ipy_run", a:code)
+    call rpcnotify(g:ipy_channel, "ipy_run", a:code)
 endfunction
 
 function! IPyRunSel(sel)
@@ -17,8 +17,8 @@ endfunction
 
 nnoremap <Plug>(IPy-RunLine) :call IPyRunSel('line')<cr>
 vnoremap <Plug>(IPy-RunLine) :<c-u>call IPyRunSel('vline')<cr>
-inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call rpcnotify(0, "ipy_complete")<cr>
-noremap <Plug>(IPy-Interrupt) :call rpcnotify(0, "ipy_interrupt")<cr>
+inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call rpcnotify(g:ipy_channel, "ipy_complete")<cr>
+noremap <Plug>(IPy-Interrupt) :call rpcnotify(g:ipy_channel, "ipy_interrupt")<cr>
 
 
 function! IPyObjinfo()
@@ -26,7 +26,7 @@ function! IPyObjinfo()
     let &isk = '@,48-57,_,192-255,.'
     let word = expand("<cword>")
     let &isk = isk_save
-    call rpcnotify(0, "ipy_objinfo", word)
+    call rpcnotify(g:ipy_channel, "ipy_objinfo", word)
 endfunction
 
 if !exists('g:nvim_ipy_perform_mappings')
