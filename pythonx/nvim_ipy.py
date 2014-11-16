@@ -22,12 +22,11 @@ class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
     kernel_client_class = KernelClient
     def init_kernel_client(self):
         self.kernel_client = self.kernel_manager.client()
-        post = curry(self.target)
         # NOT SURE if "monkey patching" or just "configuration"
-        self.kernel_client.shell_channel.call_handlers = post("shell_msg")
-        self.kernel_client.iopub_channel.call_handlers = post("iopub_msg")
-        self.kernel_client.stdin_channel.call_handlers = post("stdin_msg")
-        self.kernel_client.hb_channel.call_handlers = post("hb_msg")
+        self.kernel_client.shell_channel.call_handlers = self.target.on_shell_msg
+        self.kernel_client.iopub_channel.call_handlers = self.target.on_iopub_msg
+        self.kernel_client.stdin_channel.call_handlers = self.target.on_stdin_msg
+        self.kernel_client.hb_channel.call_handlers = self.target.on_hb_msg
         self.kernel_client.start_channels()
 
     def initialize(self, target, argv):
@@ -44,6 +43,14 @@ def ipy_async(f):
         gr = greenlet.greenlet(f)
         return gr.switch(*a, **b)
     return new_f
+
+class Threadsafe(object):
+    def __init__(self, wraps):
+        self.wraps = wraps
+
+    def __getattr__(self, name):
+        return partial(self.wraps.vim.session.threadsafe_call, getattr(self.wraps, name))
+
 
 @neovim.plugin
 class IPythonPlugin(object):
@@ -106,9 +113,9 @@ class IPythonPlugin(object):
             self.create_outbuf()
 
         self.ip_app = IPythonVimApp()
-        # messages will be recieved in IPython's event loop
-        # post them to ours
-        self.ip_app.initialize(vim.session.post, argv)
+        # messages will be recieved in IPython's event loop threads
+        # so use the threadsafe self
+        self.ip_app.initialize(Threadsafe(self), argv)
         self.kc = self.ip_app.kernel_client
         self.km = self.ip_app.kernel_manager
         self.sc = self.kc.shell_channel
@@ -185,7 +192,7 @@ class IPythonPlugin(object):
     @neovim.rpc_export("ipy_run_selection",sync=True)
     def ipy_run_selection(self, sel):
         code = self.get_selection(sel)
-        self.vim.session.post("ipy_run", code)
+        Threadsafe(self).ipy_run(code)
 
     @neovim.rpc_export("ipy_complete")
     @ipy_async
@@ -228,7 +235,6 @@ class IPythonPlugin(object):
         # steal vim-ipython's getpid workaround?
         self.ip_app.kernel_manager.interrupt_kernel()
 
-    @neovim.rpc_export("iopub_msg")
     def on_iopub_msg(self, m):
         t = m['header'].get('msg_type',None)
         c = m['content']
@@ -258,7 +264,6 @@ class IPythonPlugin(object):
         if self.vim.vars.get('ipy_io_debug'):
             self.append_outbuf('{!s}: {!r}\n'.format(t, c))
 
-    @neovim.rpc_export("shell_msg")
     def on_shell_msg(self, m):
         msg_id = m['parent_header']['msg_id']
         try:
@@ -273,11 +278,9 @@ class IPythonPlugin(object):
             handler(m)
 
     #this gets called when heartbeat is lost
-    @neovim.rpc_export("hb_msg")
     def on_hb_msg(self, time_since):
         self.disp_status("DEAD")
 
-    @neovim.rpc_export("stdin_msg")
     def on_stdin_msg(self, msg):
         pass #FIXME
 
