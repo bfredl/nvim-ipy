@@ -15,8 +15,8 @@ Connect to existing kernel:
     :IPython --existing
 Start kernel in diffenent language (if installed)
 
-    :IPython -profile julia
-    :IPython -profile haskell
+    :IPython --profile julia
+    :IPython --profile haskell
 (this might be more flexibe in IPython 3.0)
 
 See plugin/ipy.vim for keybindings (you might want to overide these)
