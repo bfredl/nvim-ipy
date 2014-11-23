@@ -26,7 +26,7 @@ if g:nvim_ipy_perform_mappings
     imap <silent> <C-Space> <Plug>(IPy-Complete)
     map <silent> <F8> <Plug>(IPy-Interrupt)
     map <silent> <Leader>d :call IPyWordObjinfo()
-    set titlestring=%t%(\ %M%)%(\ (%{expand(\"%:p:h\")})%)%(\ %a%)%(\ -\ %{g:ipy_status}%)
+    "set titlestring=%t%(\ %M%)%(\ (%{expand(\"%:p:h\")})%)%(\ %a%)%(\ -\ %{g:ipy_status}%)
 endif
 
 
