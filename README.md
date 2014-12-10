@@ -1,4 +1,4 @@
-This is a IPython client for Neovim, based on ivanov/vim-ipython, but refactored for nvim's plugin architechture and improved async event handling. It is not as feature complete as vim-ipython, but it has better support for long-running commands that continously produce output, for instance this silly example:
+This is a IPython client for Neovim, based on ivanov/vim-ipython, but refactored for nvim's plugin architechture and improved async event handling. It is not as feature-complete as vim-ipython, but it has better support for long-running commands that continously produce output, for instance this silly example:
 
     from time import sleep
     for i in range(10):
@@ -13,10 +13,10 @@ Start new python kernel:
 Connect to existing kernel:
 
     :IPython --existing
-Start kernel in diffenent language (if installed)
+Start kernel in different language (if installed)
 
     :IPython --profile julia
     :IPython --profile haskell
-(this might be more flexibe in IPython 3.0)
+(this might be more flexible in IPython 3.0)
 
-See plugin/ipy.vim for keybindings (you might want to overide these)
+See plugin/ipy.vim for keybindings (you might want to override these)

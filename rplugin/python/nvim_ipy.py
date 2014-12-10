@@ -59,6 +59,7 @@ class IPythonPlugin(object):
         self.buf = None
         self.has_connection = False
         self.pending_shell_msgs = {}
+        self.max_in = 3
 
     def create_outbuf(self):
         vim = self.vim
@@ -87,21 +88,6 @@ class IPythonPlugin(object):
         for w in self.vim.windows:
             if w.buffer == self.buf:
                 w.cursor = [len(self.buf), int(1e9)]
-
-    def get_selection(self, kind):
-        vim = self.vim
-        if kind == "line":
-            return vim.current.line + '\n'
-        elif kind == "vline":
-            b = vim.current.buffer
-            start = b.mark('<')
-            end = b.mark('>')
-            lines = b[start[0]-1:end[0]]
-            txt = '\n'.join(lines) + '\n'
-            return txt
-        #TODO: char visual
-        else:
-            raise ValueError("invalid object", kind)
 
     # TODO: perhaps expose also the "programmatic" connection api
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
@@ -188,12 +174,6 @@ class IPythonPlugin(object):
                 # TODO: if this is long, open separate window
                 self.append_outbuf(p['text'])
 
-    @neovim.function("IPyRunSelection",sync=True)
-    def ipy_run_selection(self, args):
-        (sel,) = args
-        code = self.get_selection(sel)
-        Threadsafe(self).ipy_run([code])
-
     @neovim.function("IPyComplete")
     @ipy_async
     def ipy_complete(self,args):
@@ -232,9 +212,12 @@ class IPythonPlugin(object):
 
     @neovim.function("IPyInterrupt")
     def on_ipy_interrupt(self, args):
-        # FIXME: only works on kernel we did start
-        # steal vim-ipython's getpid workaround?
-        self.ip_app.kernel_manager.interrupt_kernel()
+        self.km.interrupt_kernel()
+
+    @neovim.function("IPyTerminate")
+    def on_ipy_terminate(self, args):
+        restart = args[0] if args else False
+        self.km.shutdown_kernel(restart=restart)
 
     def on_iopub_msg(self, m):
         t = m['header'].get('msg_type',None)
@@ -245,8 +228,11 @@ class IPythonPlugin(object):
             self.disp_status(status)
         elif t == 'pyin':
             prompt = 'In[{}]: '.format(c['execution_count'])
-            code = c['code'].rstrip().replace('\n','\n'+' '*len(prompt))
-            self.append_outbuf('\n{}{}\n'.format(prompt, code))
+            code = c['code'].rstrip().split('\n')
+            if self.max_in and len(code) > self.max_in:
+                code = code[:self.max_in] + ['.....']
+            sep = '\n'+' '*len(prompt)
+            self.append_outbuf('\n{}{}\n'.format(prompt, sep.join(code)))
         elif t == 'pyout':
             no = c['execution_count']
             res = c['data']['text/plain']

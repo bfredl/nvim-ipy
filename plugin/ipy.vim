@@ -1,10 +1,11 @@
 command! -nargs=* IPython :call IPyConnect(<f-args>)
 command! -nargs=* IJulia :call IPyConnect("--profile", "julia")
 
-nnoremap <Plug>(IPy-RunLine) :call IPyRunSelection('line')<cr>
-vnoremap <Plug>(IPy-RunLine) :<c-u>call IPyRunSelection('vline')<cr>
+nnoremap <Plug>(IPy-Run) :call IPyRun(getline('.'))<cr>
+vnoremap <Plug>(IPy-Run) :<c-u>call IPyRun(<SID>get_visual_selection())<cr>
 inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call IPyComplete()<cr>
 noremap <Plug>(IPy-Interrupt) :call IPyInterrupt()<cr>
+noremap <Plug>(IPy-Terminate) :call IPyTerminate()<cr>
 
 
 function! IPyWordObjinfo()
@@ -15,6 +16,16 @@ function! IPyWordObjinfo()
     call IPyObjInfo(word, 0)
 endfunction
 
+" thanks to @xolox on stackoverflow
+function! s:get_visual_selection()
+    let [lnum1, col1] = getpos("'<")[1:2]
+    let [lnum2, col2] = getpos("'>")[1:2]
+    let lines = getline(lnum1, lnum2)
+    let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
+    let lines[0] = lines[0][col1 - 1:]
+    return join(lines, "\n")
+endfunction
+
 if !exists('g:nvim_ipy_perform_mappings')
     let g:nvim_ipy_perform_mappings = 1
 endif
@@ -22,7 +33,7 @@ endif
 let g:ipy_status = ""
 
 if g:nvim_ipy_perform_mappings
-    map <silent> <F5>           <Plug>(IPy-RunLine)
+    map <silent> <F5>           <Plug>(IPy-Run)
     imap <silent> <C-Space> <Plug>(IPy-Complete)
     map <silent> <F8> <Plug>(IPy-Interrupt)
     map <silent> <Leader>d :call IPyWordObjinfo()
