@@ -5,7 +5,7 @@ import json
 import re
 import neovim
 import IPython
-from IPython.kernel.client import KernelClient
+from IPython.kernel import KernelClient, KernelManager
 from IPython.core.application import BaseIPythonApplication
 from IPython.consoleapp import IPythonConsoleApp
 from logging import debug
@@ -17,9 +17,18 @@ import greenlet
 # functools is missing "curry", easily fixed:
 curry = partial(partial, partial)
 
+class RedirectingKernelManager(KernelManager):
+    def _launch_kernel(self, *a, **b):
+        # stdout is used to communicate with nvim, redirect it somewhere else
+        self._null = open("/dev/null","w",0)
+        b['stdout'] = self._null.fileno()
+        b['stderr'] = self._null.fileno()
+        return super(RedirectingKernelManager, self)._launch_kernel(*a, **b)
+
 class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
     # don't use blocking client; we override call_handlers below
     kernel_client_class = KernelClient
+    kernel_manager_class = RedirectingKernelManager
     def init_kernel_client(self):
         self.kernel_client = self.kernel_manager.client()
         # NOT SURE if "monkey patching" or just "configuration"
