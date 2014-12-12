@@ -278,7 +278,8 @@ class IPythonPlugin(object):
         self.disp_status("DEAD")
 
     def on_stdin_msg(self, msg):
-        pass #FIXME
+        self.vim.vars['ipy_prompt'] = "(IPy) " + msg["content"]["prompt"]
+        self.kc.input(self.vim.eval("input(g:ipy_prompt)"))
 
 # run alone in a separate host, for debugs
 if __name__ == "__main__":
