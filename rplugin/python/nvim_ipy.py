@@ -68,7 +68,21 @@ class IPythonPlugin(object):
         self.buf = None
         self.has_connection = False
         self.pending_shell_msgs = {}
-        self.max_in = 3
+
+    def configure(self):
+        #FIXME: rethink the entire configuration interface thing
+        self.max_in = self.vim.vars.get("ipy_truncate_input", 0)
+        if self.vim.vars.get("ipy_shortprompt", False):
+            self.prompt_in = " {}: "
+            self.prompt_out = "_{}: "
+            #TODO: use concealends instead
+            self.re_in = r"^ [0-9]\+:"
+            self.re_out = r"_[0-9]\+:"
+        else:
+            self.prompt_in = "In[{}]: "
+            self.prompt_out = "Out[{}]: "
+            self.re_in = r"^In"
+            self.re_out = r"^Out"
 
     def create_outbuf(self):
         vim = self.vim
@@ -79,7 +93,6 @@ class IPythonPlugin(object):
         w0 = vim.current.window
         vim.command(":new")
         buf = vim.current.buffer
-        buf.options["buflisted"] = False
         buf.options["swapfile"] = False
         buf.options["buftype"] = "nofile"
         buf.name = "[ipython]"
@@ -102,6 +115,7 @@ class IPythonPlugin(object):
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
     @ipy_async
     def connect(self, argv):
+        self.configure()
         vim = self.vim
         if self.buf is None:
             self.create_outbuf()
@@ -126,15 +140,13 @@ class IPythonPlugin(object):
         if ipy_version[3] != '':
             vdesc += '-' + ipy_version[3]
         banner = [
-                "nvim-jupyter: asynchronous interactive computing",
+                "nvim-ipy: Jupyter shell for Neovim",
                 "IPython {}".format(vdesc),
                 "language: {} {}".format(lang, '.'.join(str(i) for i in c['language_version'])),
                 "",
                 ]
         self.buf[:0] = banner
 
-        #FIXME: "set ft" crashes inside plugin host
-        return
         w0 = vim.current.window
         if vim.current.buffer != self.buf:
             for w in vim.windows:
@@ -144,6 +156,14 @@ class IPythonPlugin(object):
             else:
                 return #reopen window?
         vim.command("set ft={}".format(lang))
+        # FIXME: formatting is lost if shell window is closed+reopened
+        for i in range(len(banner)):
+            vim.eval("matchaddpos('Comment', [{}])".format(i+1))
+        vim.vars["ipy_regex_in"] = self.re_in
+        vim.vars["ipy_regex_out"] = self.re_out
+        vim.eval(r"matchadd('IpyIn', g:ipy_regex_in)")
+        vim.eval(r"matchadd('IpyOut', g:ipy_regex_out)")
+
         vim.current.window = w0
 
     def disp_status(self, status):
@@ -229,6 +249,8 @@ class IPythonPlugin(object):
         self.km.shutdown_kernel(restart=restart)
 
     def on_iopub_msg(self, m):
+        #FIXME: figure out the smoothest way to to matchaddpos
+        # (from a different window), or just use concealends
         t = m['header'].get('msg_type',None)
         c = m['content']
 
@@ -236,7 +258,7 @@ class IPythonPlugin(object):
             status = c['execution_state']
             self.disp_status(status)
         elif t == 'pyin':
-            prompt = 'In[{}]: '.format(c['execution_count'])
+            prompt = self.prompt_in.format(c['execution_count'])
             code = c['code'].rstrip().split('\n')
             if self.max_in and len(code) > self.max_in:
                 code = code[:self.max_in] + ['.....']
@@ -245,7 +267,7 @@ class IPythonPlugin(object):
         elif t == 'pyout':
             no = c['execution_count']
             res = c['data']['text/plain']
-            self.append_outbuf('Out[{}]: {}\n'.format(no, res.rstrip()))
+            self.append_outbuf((self.prompt_out + '{}\n').format(no, res.rstrip()))
         elif t == 'pyerr':
             #TODO: this should be made language specific
             # as the amt of info in 'traceback' differs
