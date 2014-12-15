@@ -72,6 +72,8 @@ class IPythonPlugin(object):
     def configure(self):
         #FIXME: rethink the entire configuration interface thing
         self.max_in = self.vim.vars.get("ipy_truncate_input", 0)
+        self.dbg_iopub = self.vim.vars.get("ipy_debug_io", 0)
+        self.dbg_shell = self.vim.vars.get("ipy_debug_shell", 0)
         if self.vim.vars.get("ipy_shortprompt", False):
             self.prompt_in = " {}: "
             self.prompt_out = "_{}: "
@@ -229,7 +231,6 @@ class IPythonPlugin(object):
         if not c['found']:
             self.append_outbuf("not found: {}\n".format(o['name']))
             return
-        #TODO: enable subqueries like "what is the type", interactive argspec (like jedi-vim) etc
         self.append_outbuf("\n")
         for field in ['name','namespace','type_name','base_class','length','string_form',
             'file','definition','source','docstring']:
@@ -245,14 +246,16 @@ class IPythonPlugin(object):
 
     @neovim.function("IPyTerminate")
     def on_ipy_terminate(self, args):
-        restart = args[0] if args else False
-        self.km.shutdown_kernel(restart=restart)
+        self.km.shutdown_kernel()
 
     def on_iopub_msg(self, m):
         #FIXME: figure out the smoothest way to to matchaddpos
         # (from a different window), or just use concealends
         t = m['header'].get('msg_type',None)
         c = m['content']
+
+        if self.dbg_iopub:
+            self.append_outbuf('{!s}: {!r}\n'.format(t, c))
 
         if t == 'status':
             status = c['execution_state']
@@ -279,10 +282,10 @@ class IPythonPlugin(object):
             d = c['data']['text/plain']
             self.append_outbuf(d + '\n')
 
-        if self.vim.vars.get('ipy_io_debug'):
-            self.append_outbuf('{!s}: {!r}\n'.format(t, c))
 
     def on_shell_msg(self, m):
+        if self.dbg_shell:
+            self.append_outbuf(repr(m)+'\n')
         msg_id = m['parent_header']['msg_id']
         try:
             handler = self.pending_shell_msgs.pop(msg_id)
@@ -302,17 +305,3 @@ class IPythonPlugin(object):
     def on_stdin_msg(self, msg):
         self.vim.vars['ipy_prompt'] = "(IPy) " + msg["content"]["prompt"]
         self.kc.input(self.vim.eval("input(g:ipy_prompt)"))
-
-# run alone in a separate host, for debugs
-if __name__ == "__main__":
-    from neovim import stdio_session, Host, Nvim, socket_session
-    import logging
-    handler = logging.StreamHandler()
-    logging.root.addHandler(handler)
-    logging.root.setLevel(logging.DEBUG)
-    nvim = Nvim.from_session(socket_session(environ["NVIM_LISTEN_ADDRESS"]))
-    host =  Host(nvim)
-    try:
-        host.start([__file__])
-    except KeyboardInterrupt:
-        pass#exit
