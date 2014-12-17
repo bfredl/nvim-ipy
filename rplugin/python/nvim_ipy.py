@@ -29,8 +29,22 @@ class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
     # don't use blocking client; we override call_handlers below
     kernel_client_class = KernelClient
     kernel_manager_class = RedirectingKernelManager
+    aliases = IPythonConsoleApp.aliases #this the way?
+    flags = IPythonConsoleApp.flags
     def init_kernel_client(self):
-        self.kernel_client = self.kernel_manager.client()
+        if self.kernel_manager is not None:
+            self.kernel_client = self.kernel_manager.client()
+        else:
+            self.kernel_client = self.kernel_client_class(
+                                ip=self.ip,
+                                transport=self.transport,
+                                shell_port=self.shell_port,
+                                iopub_port=self.iopub_port,
+                                stdin_port=self.stdin_port,
+                                hb_port=self.hb_port,
+                                connection_file=self.connection_file,
+                                parent=self,
+            )
         # NOT SURE if "monkey patching" or just "configuration"
         self.kernel_client.shell_channel.call_handlers = self.target.on_shell_msg
         self.kernel_client.iopub_channel.call_handlers = self.target.on_iopub_msg
@@ -191,7 +205,7 @@ class IPythonPlugin(object):
     @ipy_async
     def ipy_run(self, args):
         (code,) = args
-        if not self.km.is_alive():
+        if self.km and not self.km.is_alive():
             choice = int(self.vim.eval("confirm('Kernel died. Restart?', '&Yes\n&No')"))
             if choice == 1:
                 self.km.restart_kernel(True)
