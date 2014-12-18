@@ -17,13 +17,16 @@ import greenlet
 # functools is missing "curry", easily fixed:
 curry = partial(partial, partial)
 
+py3_hack = False
+
 class RedirectingKernelManager(KernelManager):
-    def _launch_kernel(self, *a, **b):
+    def _launch_kernel(self, cmd, **b):
         # stdout is used to communicate with nvim, redirect it somewhere else
         self._null = open("/dev/null","w",0)
         b['stdout'] = self._null.fileno()
         b['stderr'] = self._null.fileno()
-        return super(RedirectingKernelManager, self)._launch_kernel(*a, **b)
+        if py3_hack: cmd[0] = "python3"
+        return super(RedirectingKernelManager, self)._launch_kernel(cmd, **b)
 
 class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
     # don't use blocking client; we override call_handlers below
@@ -131,10 +134,18 @@ class IPythonPlugin(object):
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
     @ipy_async
     def connect(self, argv):
+        global py3_hack
         self.configure()
         vim = self.vim
         if self.buf is None:
             self.create_outbuf()
+
+        # hack for IPython2.x
+        if len(argv) >= 2 and argv[:2] == ["--kernel", "python3"]:
+            del argv[:2]
+            py3_hack = True
+        else:
+            py3_hack = False
 
         self.ip_app = IPythonVimApp()
         # messages will be recieved in IPython's event loop threads

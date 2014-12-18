@@ -7,16 +7,17 @@ This is a IPython client for Neovim, based on ivanov/vim-ipython, but refactored
 
 Another difference, `:IPython <args>` is interpreted the same as the command line `ipython console <args>`, for instance:
 
-Start new python kernel:
+Start new python kernel: (on IPython2.x, python3 is supported through a hack that assumes `python3` is in $PATH )
 
     :IPython
+    :IPython3
 Connect to existing kernel:
 
     :IPython --existing
-Start kernel in different language (if installed)
+Start kernel in different language (if installed). 
 
     :IPython --profile julia
     :IPython --profile haskell
-(this might be more flexible in IPython 3.0)
+this will be better supported in IPython 3.x (Jupyter)
 
 See plugin/ipy.vim for keybindings (you might want to override these)
