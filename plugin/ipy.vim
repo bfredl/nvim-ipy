@@ -9,8 +9,8 @@ noremap <Plug>(IPy-Interrupt) :call IPyInterrupt()<cr>
 noremap <Plug>(IPy-Terminate) :call IPyTerminate()<cr>
 
 " make this overrideable
-hi IpyIn ctermfg=green cterm=bold
-hi IpyOut ctermfg=red cterm=bold
+hi IPyIn ctermfg=green cterm=bold
+hi IPyOut ctermfg=red cterm=bold
 
 function! IPyWordObjinfo()
     let isk_save = &isk

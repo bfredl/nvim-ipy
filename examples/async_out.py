@@ -1,5 +1,7 @@
 from time import sleep
-sleep(3)
+import sys
+sleep(1)
 for i in range(10):
     sleep(0.3)
-    print("X")
+    print(i)
+    sys.stdout.flush()

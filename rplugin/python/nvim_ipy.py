@@ -14,9 +14,6 @@ from os import environ
 strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
 import greenlet
 
-# functools is missing "curry", easily fixed:
-curry = partial(partial, partial)
-
 py3_hack = False
 
 class RedirectingKernelManager(KernelManager):
@@ -35,6 +32,7 @@ class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
     aliases = IPythonConsoleApp.aliases #this the way?
     flags = IPythonConsoleApp.flags
     def init_kernel_client(self):
+        #TODO: cleanup this (by subclassing kernel_clint or something)
         if self.kernel_manager is not None:
             self.kernel_client = self.kernel_manager.client()
         else:
@@ -48,7 +46,6 @@ class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
                                 connection_file=self.connection_file,
                                 parent=self,
             )
-        # NOT SURE if "monkey patching" or just "configuration"
         self.kernel_client.shell_channel.call_handlers = self.target.on_shell_msg
         self.kernel_client.iopub_channel.call_handlers = self.target.on_iopub_msg
         self.kernel_client.stdin_channel.call_handlers = self.target.on_stdin_msg
@@ -105,10 +102,8 @@ class IPythonPlugin(object):
 
     def create_outbuf(self):
         vim = self.vim
-        for b in vim.buffers:
-            if "[ipython" in b.name:
-                self.buf = b
-                return
+        if self.buf is not None:
+            return
         w0 = vim.current.window
         vim.command(":new")
         buf = vim.current.buffer
@@ -130,15 +125,13 @@ class IPythonPlugin(object):
             if w.buffer == self.buf:
                 w.cursor = [len(self.buf), int(1e9)]
 
-    # TODO: perhaps expose also the "programmatic" connection api
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
     @ipy_async
     def connect(self, argv):
         global py3_hack
         self.configure()
         vim = self.vim
-        if self.buf is None:
-            self.create_outbuf()
+        self.create_outbuf()
 
         # hack for IPython2.x
         if len(argv) >= 2 and argv[:2] == ["--kernel", "python3"]:
@@ -188,8 +181,8 @@ class IPythonPlugin(object):
             vim.eval("matchaddpos('Comment', [{}])".format(i+1))
         vim.vars["ipy_regex_in"] = self.re_in
         vim.vars["ipy_regex_out"] = self.re_out
-        vim.eval(r"matchadd('IpyIn', g:ipy_regex_in)")
-        vim.eval(r"matchadd('IpyOut', g:ipy_regex_out)")
+        vim.eval(r"matchadd('IPyIn', g:ipy_regex_in)")
+        vim.eval(r"matchadd('IPyOut', g:ipy_regex_out)")
 
         vim.current.window = w0
 
