@@ -1,5 +1,6 @@
 from __future__ import print_function, division
 from functools import partial, wraps
+from collections import deque
 import os, sys
 import json
 import re
@@ -82,6 +83,9 @@ class IPythonPlugin(object):
         self.buf = None
         self.has_connection = False
         self.pending_shell_msgs = {}
+
+        self.io_msgs = deque()
+        self.handling_io = False
 
     def configure(self):
         #FIXME: rethink the entire configuration interface thing
@@ -266,7 +270,17 @@ class IPythonPlugin(object):
     def on_ipy_terminate(self, args):
         self.km.shutdown_kernel()
 
+    # this will be simpler when we switch to single-thread IO
     def on_iopub_msg(self, m):
+        self.io_msgs.append(m)
+        if self.handling_io:
+            return
+        self.handling_io = True
+        while self.io_msgs:
+            self._on_iopub_msg(self.io_msgs.popleft())
+        self.handling_io = False
+
+    def _on_iopub_msg(self, m):
         #FIXME: figure out the smoothest way to to matchaddpos
         # (from a different window), or just use concealends
         t = m['header'].get('msg_type',None)
