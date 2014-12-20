@@ -75,25 +75,19 @@ class Threadsafe(object):
     def __getattr__(self, name):
         return partial(self.wraps.vim.session.threadsafe_call, getattr(self.wraps, name))
 
-# FIXME: un-reinvent this wheel
-class MsgQueue(object):
-    def __init__(self):
+class MsgHandler(object):
+    def __init__(self, handler):
         self.msgs = deque()
-        self.waiters = deque()
+        self.handler = handler
+        self.is_active = False
 
-    def get(self):
-        while not self.msgs:
-            gr = greenlet.getcurrent()
-            self.waiters.append(gr)
-            gr.parent.switch()
-        return self.msgs.popleft()
-
-    def put(self, msg):
+    def __call__(self, msg):
         self.msgs.append(msg)
-        if self.waiters:
-            handler = self.waiters.popleft()
-            handler.parent = greenlet.getcurrent()
-            handler.switch()
+        if not self.is_active:
+            self.is_active = True
+            while self.msgs:
+                self.handler(self.msgs.popleft())
+            self.is_active = False
 
 @neovim.plugin
 class IPythonPlugin(object):
@@ -103,8 +97,9 @@ class IPythonPlugin(object):
         self.has_connection = False
 
         self.pending_shell_msgs = {}
-        self.io_msgs = MsgQueue()
-        self.handle_io()
+
+        # make sure one message is handled at a time
+        self.on_iopub_msg = MsgHandler(self._on_iopub_msg)
 
 
     def configure(self):
@@ -289,14 +284,6 @@ class IPythonPlugin(object):
     @neovim.function("IPyTerminate")
     def on_ipy_terminate(self, args):
         self.km.shutdown_kernel()
-
-    def on_iopub_msg(self, m):
-        self.io_msgs.put(m)
-
-    @ipy_async
-    def handle_io(self):
-        while True:
-            self._on_iopub_msg(self.io_msgs.get())
 
     def _on_iopub_msg(self, m):
         #FIXME: figure out the smoothest way to to matchaddpos
