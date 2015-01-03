@@ -9,13 +9,20 @@ import IPython
 from IPython.kernel import KernelClient, KernelManager
 from IPython.core.application import BaseIPythonApplication
 from IPython.consoleapp import IPythonConsoleApp
-from logging import debug
-from os import environ
-# from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
-strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
 import greenlet
 
+# from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
+strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
+
 py3_hack = False
+
+import logging
+logger = logging.getLogger(__name__)
+error, debug, info, warn = (logger.error, logger.debug, logger.info, logger.warn,)
+if 'NVIM_IPY_DEBUG_FILE' in os.environ:
+    logfile = os.environ['NVIM_IPY_DEBUG_FILE'].strip()
+    logger.addHandler(logging.FileHandler(logfile, 'w'))
+    logger.level = logging.DEBUG
 
 class RedirectingKernelManager(KernelManager):
     def _launch_kernel(self, cmd, **b):
@@ -105,8 +112,6 @@ class IPythonPlugin(object):
     def configure(self):
         #FIXME: rethink the entire configuration interface thing
         self.max_in = self.vim.vars.get("ipy_truncate_input", 0)
-        self.dbg_iopub = self.vim.vars.get("ipy_debug_io", 0)
-        self.dbg_shell = self.vim.vars.get("ipy_debug_shell", 0)
         if self.vim.vars.get("ipy_shortprompt", False):
             self.prompt_in = " {}: "
             self.prompt_out = "_{}: "
@@ -291,8 +296,7 @@ class IPythonPlugin(object):
         t = m['header'].get('msg_type',None)
         c = m['content']
 
-        if self.dbg_iopub:
-            self.append_outbuf('{!s}: {!r}\n'.format(t, c))
+        debug('iopub %s: %r', t, c)
 
         if t == 'status':
             status = c['execution_state']
@@ -321,8 +325,7 @@ class IPythonPlugin(object):
 
 
     def on_shell_msg(self, m):
-        if self.dbg_shell:
-            self.append_outbuf(repr(m)+'\n')
+        debug('shell %s: %r', m['msg_type'], m['content'])
         msg_id = m['parent_header']['msg_id']
         try:
             handler = self.pending_shell_msgs.pop(msg_id)
