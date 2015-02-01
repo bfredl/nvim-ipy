@@ -124,14 +124,9 @@ class IPythonPlugin(object):
         if self.vim.vars.get("ipy_shortprompt", False):
             self.prompt_in = u" {}: "
             self.prompt_out = u"_{}: "
-            #TODO: use concealends instead
-            self.re_in = r"^ [0-9]\+:"
-            self.re_out = r"_[0-9]\+:"
         else:
             self.prompt_in = u"In[{}]: "
             self.prompt_out = u"Out[{}]: "
-            self.re_in = r"^In"
-            self.re_out = r"^Out"
 
     def create_outbuf(self):
         vim = self.vim
@@ -146,9 +141,14 @@ class IPythonPlugin(object):
         vim.current.window = w0
         self.buf = buf
 
+    def add_highlight(self, grp, row, start=1, end=-1):
+        self.vim.session.request('buffer_add_highlight', self.buf, -1, grp, row, start, end)
+
+    # FIXME: encoding
     def append_outbuf(self, data):
         # TODO: replace with some fancy syntax marks instead
         data = strip_ansi.sub('', data)
+        lineno = len(self.buf)
         lastline = self.buf[-1]
 
         txt = lastline + data
@@ -156,6 +156,7 @@ class IPythonPlugin(object):
         for w in self.vim.windows:
             if w.buffer == self.buf:
                 w.cursor = [len(self.buf), int(1e9)]
+        return lineno
 
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
     def connect(self, argv):
@@ -188,6 +189,8 @@ class IPythonPlugin(object):
                 "",
                 ]
         self.buf[:0] = banner
+        for i in range(len(banner)):
+            self.add_highlight('Comment', i+1)
 
         # TODO: we might want to wrap this in a sync call
         # to avoid racyness with user interaction
@@ -200,13 +203,6 @@ class IPythonPlugin(object):
             else:
                 return #reopen window?
         vim.command("set ft={}".format(lang))
-        # FIXME: formatting is lost if shell window is closed+reopened
-        for i in range(len(banner)):
-            vim.funcs.matchaddpos('Comment', [i+1])
-
-        vim.funcs.matchadd('IPyIn', self.re_in)
-        vim.funcs.matchadd('IPyOut', self.re_out)
-
 
         vim.current.window = w0
 
@@ -322,10 +318,12 @@ class IPythonPlugin(object):
                     code = code[:self.max_in] + ['.....']
                 sep = '\n'+' '*len(prompt)
                 self.append_outbuf(u'\n{}{}\n'.format(prompt, sep.join(code)))
+                self.add_highlight('IPyIn', line+1, 1, len(prompt))
             elif t in ['pyout', 'execute_result']:
                 no = c['execution_count']
                 res = c['data']['text/plain']
                 self.append_outbuf((self.prompt_out + u'{}\n').format(no, res.rstrip()))
+                self.add_highlight('IPyOut', line, 1, len(prompt))
             elif t in ['pyerr', 'error']:
                 #TODO: this should be made language specific
                 # as the amt of info in 'traceback' differs
@@ -338,7 +336,6 @@ class IPythonPlugin(object):
                 self.append_outbuf(d + '\n')
         except Exception as e:
             debug("Couldn't handle iopub message %r: %s", m, format_exc())
-
 
 
     def on_shell_msg(self, m):
