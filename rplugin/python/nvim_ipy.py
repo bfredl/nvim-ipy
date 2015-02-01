@@ -11,6 +11,7 @@ try:
     from jupyter_client.threaded import ThreadedKernelClient
     from jupyter_core.application import JupyterApp
     from jupyter_client.consoleapp import JupyterConsoleApp
+    from qtconsole.ansi_code_processor import AnsiCodeProcessor
     from jupyter_core import version_info
     kind = "Jupyter" # :)
 except:
@@ -18,6 +19,7 @@ except:
     from IPython.kernel.threaded import ThreadedKernelClient
     from IPython.core.application import BaseIPythonApplication as JupyterApp
     from IPython.consoleapp import IPythonConsoleApp as JupyterConsoleApp
+    from IPython.qt.console.ansi_code_processor import AnsiCodeProcessor
     from IPython import version_info
     kind = "IPython" # plz upgrade
 
@@ -122,8 +124,8 @@ class IPythonPlugin(object):
         #FIXME: rethink the entire configuration interface thing
         self.max_in = self.vim.vars.get("ipy_truncate_input", 0)
         if self.vim.vars.get("ipy_shortprompt", False):
-            self.prompt_in = u" {}: "
-            self.prompt_out = u"_{}: "
+            self.prompt_in = u"{}: "
+            self.prompt_out = u"{}: "
         else:
             self.prompt_in = u"In[{}]: "
             self.prompt_out = u"Out[{}]: "
@@ -140,19 +142,53 @@ class IPythonPlugin(object):
         buf.name = "[jupyter]"
         vim.current.window = w0
         self.buf = buf
+        self.hl_handler = AnsiCodeProcessor()
+        self.hl_handler.bold_text_enabled = True
 
     def add_highlight(self, grp, row, start=1, end=-1):
         self.vim.session.request('buffer_add_highlight', self.buf, -1, grp, row, start, end)
 
     # FIXME: encoding
     def append_outbuf(self, data):
-        # TODO: replace with some fancy syntax marks instead
+        self.hl_handler.reset_sgr()
         data = strip_ansi.sub('', data)
         lineno = len(self.buf)
         lastline = self.buf[-1]
 
         txt = lastline + data
         self.buf[-1:] = txt.split("\n") # not splitlines
+        for w in self.vim.windows:
+            if w.buffer == self.buf:
+                w.cursor = [len(self.buf), int(1e9)]
+        return lineno
+
+    def append_outbuf_esc(self, data):
+        lineno = len(self.buf)
+        lastline = self.buf[-1]
+        colpos = len(lastline)+1
+
+        textdata = strip_ansi.sub('', data)
+        txt = lastline + textdata
+        self.buf[-1:] = txt.split("\n") # not splitlines
+        for i,line in enumerate(data.split("\n")):
+            for chunk in self.hl_handler.split_string(line):
+                l = len(chunk)
+                bold = self.hl_handler.bold or self.hl_handler.intensity > 0
+                color = self.hl_handler.foreground_color
+                if color and color > 8: color = None
+
+                if color is not None:
+                    name = "IPyFg{}".format(color)
+                    if bold: name += "Bold"
+                elif bold:
+                    name = "IPyBold"
+                else:
+                    name = None
+                if name:
+                    self.add_highlight(name, lineno+i, colpos, colpos+l-1)
+                colpos += l
+            colpos = 1
+
         for w in self.vim.windows:
             if w.buffer == self.buf:
                 w.cursor = [len(self.buf), int(1e9)]
@@ -202,7 +238,7 @@ class IPythonPlugin(object):
                     break
             else:
                 return #reopen window?
-        vim.command("set ft={}".format(lang))
+        #vim.command("set ft={}".format(lang))
 
         vim.current.window = w0
 
@@ -290,7 +326,7 @@ class IPythonPlugin(object):
             self.append_outbuf("not found: {}\n".format(o['name']))
             return
         self.append_outbuf("\n")
-        self.append_outbuf(c['data']['text/plain']+"\n")
+        self.append_outbuf_esc(c['data']['text/plain']+"\n")
 
     @neovim.function("IPyInterrupt")
     def ipy_interrupt(self, args):
@@ -317,23 +353,24 @@ class IPythonPlugin(object):
                 if self.max_in and len(code) > self.max_in:
                     code = code[:self.max_in] + ['.....']
                 sep = '\n'+' '*len(prompt)
-                self.append_outbuf(u'\n{}{}\n'.format(prompt, sep.join(code)))
+                line = self.append_outbuf_esc(u'\n{}{}\n'.format(prompt, sep.join(code)))
                 self.add_highlight('IPyIn', line+1, 1, len(prompt))
             elif t in ['pyout', 'execute_result']:
                 no = c['execution_count']
                 res = c['data']['text/plain']
-                self.append_outbuf((self.prompt_out + u'{}\n').format(no, res.rstrip()))
+                prompt = self.prompt_out.format(no)
+                line = self.append_outbuf_esc((u'{}{}\n').format(prompt, res.rstrip()))
                 self.add_highlight('IPyOut', line, 1, len(prompt))
             elif t in ['pyerr', 'error']:
                 #TODO: this should be made language specific
                 # as the amt of info in 'traceback' differs
-                self.append_outbuf('\n'.join(c['traceback']) + '\n')
+                self.append_outbuf_esc('\n'.join(c['traceback']) + '\n')
             elif t == 'stream':
                 #perhaps distinguish stderr using gutter marks?
-                self.append_outbuf(c['text'])
+                self.append_outbuf_esc(c['text'])
             elif t == 'display_data':
                 d = c['data']['text/plain']
-                self.append_outbuf(d + '\n')
+                self.append_outbuf_esc(d + '\n')
         except Exception as e:
             debug("Couldn't handle iopub message %r: %s", m, format_exc())
 
