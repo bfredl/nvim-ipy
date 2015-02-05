@@ -6,7 +6,10 @@ import json
 import re
 import neovim
 import IPython
+ipy3 = IPython.version_info[0] >= 3
 from IPython.kernel import KernelClient, KernelManager
+if ipy3:
+    from IPython.kernel.threaded import ThreadedKernelClient
 from IPython.core.application import BaseIPythonApplication
 from IPython.consoleapp import IPythonConsoleApp
 import greenlet
@@ -36,6 +39,8 @@ class RedirectingKernelManager(KernelManager):
 class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
     # don't use blocking client; we override call_handlers below
     kernel_client_class = KernelClient
+    if ipy3:
+        kernel_client_class = ThreadedKernelClient
     kernel_manager_class = RedirectingKernelManager
     aliases = IPythonConsoleApp.aliases #this the way?
     flags = IPythonConsoleApp.flags
@@ -158,7 +163,7 @@ class IPythonPlugin(object):
         self.create_outbuf()
 
         # hack for IPython2.x
-        if len(argv) >= 2 and argv[:2] == ["--kernel", "python3"]:
+        if not ipy3 and len(argv) >= 2 and argv[:2] == ["--kernel", "python3"]:
             del argv[:2]
             py3_hack = True
         else:
@@ -170,12 +175,17 @@ class IPythonPlugin(object):
         self.ip_app.initialize(Threadsafe(self), argv)
         self.kc = self.ip_app.kernel_client
         self.km = self.ip_app.kernel_manager
-        self.sc = self.kc.shell_channel
         self.has_connection = True
 
-        reply = self.waitfor(self.sc.kernel_info())
+        reply = self.waitfor(self.kc.kernel_info())
         c = reply['content']
-        lang = c['language']
+        if ipy3:
+            lang = c['language_info']['name']
+            langver = c['language_info']['version']
+        else:
+            lang = c['language']
+            langver = '.'.join(str(i) for i in c['language_version'])
+
         try:
             ipy_version = c['ipython_version']
         except KeyError:
@@ -186,7 +196,7 @@ class IPythonPlugin(object):
         banner = [
                 "nvim-ipy: Jupyter shell for Neovim",
                 "IPython {}".format(vdesc),
-                "language: {} {}".format(lang, '.'.join(str(i) for i in c['language_version'])),
+                "language: {} {}".format(lang, langver),
                 "",
                 ]
         self.buf[:0] = banner
@@ -239,7 +249,7 @@ class IPythonPlugin(object):
                 self.km.restart_kernel(True)
             return
 
-        reply = self.waitfor(self.sc.execute(code))
+        reply = self.waitfor(self.kc.execute(code))
         content = reply['content']
         payload = content['payload']
         for p in payload:
@@ -256,10 +266,16 @@ class IPythonPlugin(object):
         #pos = self.vim.current.buffer.mark(".")[1]+1
         pos = int(self.vim.eval("col('.')"))-1
 
-        reply = self.waitfor(self.sc.complete('', line, pos))
+        if ipy3:
+            reply = self.waitfor(self.kc.complete(line, pos))
+        else:
+            reply = self.waitfor(self.kc.complete('', line, pos))
         content = reply["content"]
         #TODO: check if position is still valid
-        start = pos-len(content['matched_text'])+1
+        if ipy3:
+            start = content["cursor_start"]+1
+        else:
+            start = pos-len(content['matched_text'])+1
         matches = json.dumps(content['matches'])
         self.vim.command("call complete({}, {})".format(start,matches))
 
@@ -267,20 +283,27 @@ class IPythonPlugin(object):
     @ipy_async
     def on_ipy_objinfo(self, args):
         word, level = args
-        reply = self.waitfor(self.sc.object_info(word, level))
+        if ipy3:
+            #TODO: send entire line
+            reply = self.waitfor(self.kc.inspect(word, None, level))
+        else:
+            reply = self.waitfor(self.kc.object_info(word, level))
 
         c = reply['content']
         if not c['found']:
             self.append_outbuf("not found: {}\n".format(o['name']))
             return
         self.append_outbuf("\n")
-        for field in ['name','namespace','type_name','base_class','length','string_form',
-            'file','definition','source','docstring']:
-            if c.get(field) is None:
-                continue
-            sep = '\n' if c[field].count('\n') else ' '
-            #TODO: option for separate doc buffer
-            self.append_outbuf('{}:{}{}\n'.format(field,sep,c[field].rstrip()))
+        if ipy3:
+            self.append_outbuf(c['data']['text/plain']+"\n")
+        else:
+            for field in ['name','namespace','type_name','base_class','length','string_form',
+                'file','definition','source','docstring']:
+                if c.get(field) is None:
+                    continue
+                sep = '\n' if c[field].count('\n') else ' '
+                #TODO: option for separate doc buffer
+                self.append_outbuf('{}:{}{}\n'.format(field,sep,c[field].rstrip()))
 
     @neovim.function("IPyInterrupt")
     def on_ipy_interrupt(self, args):
@@ -301,24 +324,24 @@ class IPythonPlugin(object):
         if t == 'status':
             status = c['execution_state']
             self.disp_status(status)
-        elif t == 'pyin':
+        elif t in ['pyin', 'execute_input']:
             prompt = self.prompt_in.format(c['execution_count'])
             code = c['code'].rstrip().split('\n')
             if self.max_in and len(code) > self.max_in:
                 code = code[:self.max_in] + ['.....']
             sep = '\n'+' '*len(prompt)
             self.append_outbuf('\n{}{}\n'.format(prompt, sep.join(code)))
-        elif t == 'pyout':
+        elif t in ['pyout', 'execute_result']:
             no = c['execution_count']
             res = c['data']['text/plain']
             self.append_outbuf((self.prompt_out + '{}\n').format(no, res.rstrip()))
-        elif t == 'pyerr':
+        elif t in ['pyerr', 'error']:
             #TODO: this should be made language specific
             # as the amt of info in 'traceback' differs
             self.append_outbuf('\n'.join(c['traceback']) + '\n')
         elif t == 'stream':
             #perhaps distinguish stderr using gutter marks?
-            self.append_outbuf(c['data'])
+            self.append_outbuf(c['text'] if ipy3 else c['data'])
         elif t == 'display_data':
             d = c['data']['text/plain']
             self.append_outbuf(d + '\n')
