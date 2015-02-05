@@ -1,4 +1,6 @@
-This is a IPython client for Neovim, based on ivanov/vim-ipython, but refactored for nvim's plugin architechture and improved async event handling. It is not as feature-complete as vim-ipython, but it has better support for long-running commands that continously produce output, for instance this silly example:
+This is a IPython client for Neovim, based on ivanov/vim-ipython, but refactored for nvim's plugin architechture and improved async event handling. It supports IPython 2.x and 3.x (as of 3.0-beta1).
+
+It is not as feature-complete as vim-ipython, but it has better support for long-running commands that continously produce output, for instance this silly example:
 
     from time import sleep
     for i in range(10):
