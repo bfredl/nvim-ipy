@@ -13,6 +13,7 @@ if ipy3:
 from IPython.core.application import BaseIPythonApplication
 from IPython.consoleapp import IPythonConsoleApp
 import greenlet
+from traceback import format_exc
 
 # from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
 strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
@@ -316,35 +317,38 @@ class IPythonPlugin(object):
     def _on_iopub_msg(self, m):
         #FIXME: figure out the smoothest way to to matchaddpos
         # (from a different window), or just use concealends
-        t = m['header'].get('msg_type',None)
-        c = m['content']
+        try:
+            t = m['header'].get('msg_type',None)
+            c = m['content']
 
-        debug('iopub %s: %r', t, c)
+            debug('iopub %s: %r', t, c)
+            if t == 'status':
+                status = c['execution_state']
+                self.disp_status(status)
+            elif t in ['pyin', 'execute_input']:
+                prompt = self.prompt_in.format(c['execution_count'])
+                code = c['code'].rstrip().split('\n')
+                if self.max_in and len(code) > self.max_in:
+                    code = code[:self.max_in] + ['.....']
+                sep = '\n'+' '*len(prompt)
+                self.append_outbuf('\n{}{}\n'.format(prompt, sep.join(code)))
+            elif t in ['pyout', 'execute_result']:
+                no = c['execution_count']
+                res = c['data']['text/plain']
+                self.append_outbuf((self.prompt_out + '{}\n').format(no, res.rstrip()))
+            elif t in ['pyerr', 'error']:
+                #TODO: this should be made language specific
+                # as the amt of info in 'traceback' differs
+                self.append_outbuf('\n'.join(c['traceback']) + '\n')
+            elif t == 'stream':
+                #perhaps distinguish stderr using gutter marks?
+                self.append_outbuf(c['text'] if ipy3 else c['data'])
+            elif t == 'display_data':
+                d = c['data']['text/plain']
+                self.append_outbuf(d + '\n')
+        except Exception as e:
+            debug("Couldn't handle iopub message %r: %s", m, format_exc())
 
-        if t == 'status':
-            status = c['execution_state']
-            self.disp_status(status)
-        elif t in ['pyin', 'execute_input']:
-            prompt = self.prompt_in.format(c['execution_count'])
-            code = c['code'].rstrip().split('\n')
-            if self.max_in and len(code) > self.max_in:
-                code = code[:self.max_in] + ['.....']
-            sep = '\n'+' '*len(prompt)
-            self.append_outbuf('\n{}{}\n'.format(prompt, sep.join(code)))
-        elif t in ['pyout', 'execute_result']:
-            no = c['execution_count']
-            res = c['data']['text/plain']
-            self.append_outbuf((self.prompt_out + '{}\n').format(no, res.rstrip()))
-        elif t in ['pyerr', 'error']:
-            #TODO: this should be made language specific
-            # as the amt of info in 'traceback' differs
-            self.append_outbuf('\n'.join(c['traceback']) + '\n')
-        elif t == 'stream':
-            #perhaps distinguish stderr using gutter marks?
-            self.append_outbuf(c['text'] if ipy3 else c['data'])
-        elif t == 'display_data':
-            d = c['data']['text/plain']
-            self.append_outbuf(d + '\n')
 
 
     def on_shell_msg(self, m):
