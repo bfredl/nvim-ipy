@@ -119,14 +119,14 @@ class IPythonPlugin(object):
         #FIXME: rethink the entire configuration interface thing
         self.max_in = self.vim.vars.get("ipy_truncate_input", 0)
         if self.vim.vars.get("ipy_shortprompt", False):
-            self.prompt_in = " {}: "
-            self.prompt_out = "_{}: "
+            self.prompt_in = u" {}: "
+            self.prompt_out = u"_{}: "
             #TODO: use concealends instead
             self.re_in = r"^ [0-9]\+:"
             self.re_out = r"_[0-9]\+:"
         else:
-            self.prompt_in = "In[{}]: "
-            self.prompt_out = "Out[{}]: "
+            self.prompt_in = u"In[{}]: "
+            self.prompt_out = u"Out[{}]: "
             self.re_in = r"^In"
             self.re_out = r"^Out"
 
@@ -331,11 +331,11 @@ class IPythonPlugin(object):
                 if self.max_in and len(code) > self.max_in:
                     code = code[:self.max_in] + ['.....']
                 sep = '\n'+' '*len(prompt)
-                self.append_outbuf('\n{}{}\n'.format(prompt, sep.join(code)))
+                self.append_outbuf(u'\n{}{}\n'.format(prompt, sep.join(code)))
             elif t in ['pyout', 'execute_result']:
                 no = c['execution_count']
                 res = c['data']['text/plain']
-                self.append_outbuf((self.prompt_out + '{}\n').format(no, res.rstrip()))
+                self.append_outbuf((self.prompt_out + u'{}\n').format(no, res.rstrip()))
             elif t in ['pyerr', 'error']:
                 #TODO: this should be made language specific
                 # as the amt of info in 'traceback' differs
