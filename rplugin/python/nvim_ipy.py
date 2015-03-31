@@ -7,6 +7,7 @@ import re
 import neovim
 import IPython
 ipy3 = IPython.version_info[0] >= 3
+from IPython.utils.py3compat import PY3, decode, bytes_to_str, unicode_type
 from IPython.kernel import KernelClient, KernelManager
 if ipy3:
     from IPython.kernel.threaded import ThreadedKernelClient
@@ -31,7 +32,7 @@ if 'NVIM_IPY_DEBUG_FILE' in os.environ:
 class RedirectingKernelManager(KernelManager):
     def _launch_kernel(self, cmd, **b):
         # stdout is used to communicate with nvim, redirect it somewhere else
-        self._null = open("/dev/null","w",0)
+        self._null = open("/dev/null","wb",0)
         b['stdout'] = self._null.fileno()
         b['stderr'] = self._null.fileno()
         if py3_hack: cmd[0] = "python3"
@@ -105,6 +106,11 @@ class MsgHandler(object):
 @neovim.plugin
 class IPythonPlugin(object):
     def __init__(self, vim):
+
+        if PY3:
+            # TODO: I would like a hook that also decodes on the rplugin callbacks
+            # so that all bytes_to_str() below can be eliminated
+            vim = vim.with_hook(neovim.DecodeHook(encoding=vim.options['encoding']))
         self.vim = vim
         self.buf = None
         self.has_connection = False
@@ -143,7 +149,6 @@ class IPythonPlugin(object):
         vim.current.window = w0
         self.buf = buf
 
-    # FIXME: encoding
     def append_outbuf(self, data):
         # TODO: replace with some fancy syntax marks instead
         data = strip_ansi.sub('', data)
@@ -158,6 +163,7 @@ class IPythonPlugin(object):
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
     @ipy_async
     def connect(self, argv):
+        argv = [bytes_to_str(a) for a in argv]
         global py3_hack
         self.configure()
         vim = self.vim
@@ -244,6 +250,7 @@ class IPythonPlugin(object):
     @ipy_async
     def ipy_run(self, args):
         (code,) = args
+        code = bytes_to_str(code)
         if self.km and not self.km.is_alive():
             choice = int(self.vim.eval("confirm('Kernel died. Restart?', '&Yes\n&No')"))
             if choice == 1:
@@ -284,6 +291,7 @@ class IPythonPlugin(object):
     @ipy_async
     def on_ipy_objinfo(self, args):
         word, level = args
+        word = bytes_to_str(word)
         if ipy3:
             #TODO: send entire line
             reply = self.waitfor(self.kc.inspect(word, None, level))
