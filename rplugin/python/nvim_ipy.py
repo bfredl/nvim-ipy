@@ -103,14 +103,11 @@ class MsgHandler(object):
                 self.handler(self.msgs.popleft())
             self.is_active = False
 
+# TODO: I would like a hook that also decodes on the rplugin callbacks
+# so that all bytes_to_str() below can be eliminated
 @neovim.plugin
 class IPythonPlugin(object):
     def __init__(self, vim):
-
-        if PY3:
-            # TODO: I would like a hook that also decodes on the rplugin callbacks
-            # so that all bytes_to_str() below can be eliminated
-            vim = vim.with_hook(neovim.DecodeHook(encoding=vim.options['encoding']))
         self.vim = vim
         self.buf = None
         self.has_connection = False
@@ -119,7 +116,6 @@ class IPythonPlugin(object):
 
         # make sure one message is handled at a time
         self.on_iopub_msg = MsgHandler(self._on_iopub_msg)
-
 
     def configure(self):
         #FIXME: rethink the entire configuration interface thing
