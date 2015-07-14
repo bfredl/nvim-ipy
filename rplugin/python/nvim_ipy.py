@@ -291,7 +291,7 @@ class IPythonPlugin(object):
 
     @neovim.function("IPyObjInfo")
     @ipy_events
-    def on_ipy_objinfo(self, args):
+    def ipy_objinfo(self, args):
         word, level = args
         word = bytes_to_str(word)
         if ipy3:
@@ -317,11 +317,11 @@ class IPythonPlugin(object):
                 self.append_outbuf('{}:{}{}\n'.format(field,sep,c[field].rstrip()))
 
     @neovim.function("IPyInterrupt")
-    def on_ipy_interrupt(self, args):
+    def ipy_interrupt(self, args):
         self.km.interrupt_kernel()
 
     @neovim.function("IPyTerminate")
-    def on_ipy_terminate(self, args):
+    def ipy_terminate(self, args):
         self.km.shutdown_kernel()
 
     def _on_iopub_msg(self, m):
