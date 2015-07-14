@@ -1,3 +1,4 @@
+# nvim-ipy
 This is a IPython/Jupyter front-end for Neovim, partially based on [ivanov/vim-ipython](https://github.com/ivanov/vim-ipython), but refactored for nvim's plugin architechture and improved async event handling. It supports IPython 2.x and 3.x, including support for non-python kernels. (Using IPython 3.x is recommended, as it is the main platform for development, and 2.x will likely be dropped before this plugin is updated for Jupyter 4.x). It uses python2 per default; see below for notes on using python3.
 
 It doesn't have all features of `vim-ipython`, but it has better support for long-running commands that continously produce output, for instance this silly example:
@@ -7,7 +8,8 @@ It doesn't have all features of `vim-ipython`, but it has better support for lon
         sleep(0.5)
         print(i)
 
-Another difference is that `:IPython <args>` is interpreted just like the command line `ipython console <args>`, for instance:
+## Connecting/starting kernel
+`:IPython <args>` is interpreted just like the command line `ipython console <args>`, for instance:
 
 Action                  | command
 ----------------------- | -------
@@ -28,4 +30,28 @@ edit `~/.nvim/.nvimrc-rplugin~` manually and change the first `'python'` to `'py
 
 (_after_ executing `:UpdateRemotePlugins`) This will launch a python3 kernel per default.
 
-See `plugin/ipy.vim` for keybindings (you might want to override these)
+## Keybindings
+
+When kernel is running, following bindings can be used:
+
+Generic                   | default     | Action
+------------------------- | ----------  | ------
+`<Plug>(IPy-Run)`         | `<F5>`      | Excecute current line or visual selection
+`<Plug>(IPy-Complete)`    | `<C-F>`     | (insert mode) Kernel code completion
+`<Plug>(IPy-WordObjInfo)` | `<leader>?` | Inspect variable under the cursor
+`<Plug>(IPy-Interrupt)`   | `<F8>`      | Send interrupt to kernel
+`<Plug>(IPy-Terminate)`   |             | Terminate kernel
+
+### But... The default bindings suck!
+Yes, they exist mainly to quickly test this plugin. Add
+
+    let g:nvim_ipy_perform_mappings = 0
+
+To your nvimrc and map to the generic bindings. For instance:
+
+    map <silent> <c-s>   <Plug>(IPy-Run)
+
+## Exported vimscript functions
+Most useful is `IPyRun("string of code")` which can be called to programmatically execute any code. This is useful to bind common commands to a key.
+
+`IPyConnect(args...)` can likewise be used to connect with vimscript generated arguments.

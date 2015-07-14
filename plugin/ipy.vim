@@ -6,6 +6,7 @@ command! -nargs=* IJulia :call IPyConnect("--profile", "julia")
 nnoremap <Plug>(IPy-Run) :call IPyRun(getline('.'))<cr>
 vnoremap <Plug>(IPy-Run) :<c-u>call IPyRun(<SID>get_visual_selection())<cr>
 inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call IPyComplete()<cr>
+noremap <Plug>(IPy-WordObjInfo) :call IPyObjInfo(<SID>get_current_word(), 0)<cr>
 noremap <Plug>(IPy-Interrupt) :call IPyInterrupt()<cr>
 noremap <Plug>(IPy-Terminate) :call IPyTerminate()<cr>
 
@@ -13,12 +14,12 @@ noremap <Plug>(IPy-Terminate) :call IPyTerminate()<cr>
 hi IPyIn ctermfg=green cterm=bold
 hi IPyOut ctermfg=red cterm=bold
 
-function! IPyWordObjinfo()
+function! s:get_current_word()
     let isk_save = &isk
     let &isk = '@,48-57,_,192-255,.'
     let word = expand("<cword>")
     let &isk = isk_save
-    call IPyObjInfo(word, 0)
+    return word
 endfunction
 
 " thanks to @xolox on stackoverflow
@@ -39,9 +40,9 @@ let g:ipy_status = ""
 
 if g:nvim_ipy_perform_mappings
     map <silent> <F5>           <Plug>(IPy-Run)
-    imap <silent> <C-Space> <Plug>(IPy-Complete)
+    imap <silent> <C-F> <Plug>(IPy-Complete)
     map <silent> <F8> <Plug>(IPy-Interrupt)
-    map <silent> <Leader>d :call IPyWordObjinfo()
+    map <silent> <leader>? <Plug>(IPy-WordObjInfo)
     "set titlestring=%t%(\ %M%)%(\ (%{expand(\"%:p:h\")})%)%(\ %a%)%(\ -\ %{g:ipy_status}%)
 endif
 
