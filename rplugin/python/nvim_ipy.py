@@ -69,24 +69,35 @@ class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
         super(IPythonVimApp, self).initialize(argv)
         IPythonConsoleApp.initialize(self, argv)
 
-# this is not strictly neccesary, as nvim client lib already wraps
-# every notification in its own greenlet, but this ensures the code still
-# works even if nvim_client stops using greenlets
-def ipy_async(f):
-    @wraps(f)
-    def new_f(*a,**b):
-        gr = greenlet.greenlet(f)
-        return gr.switch(*a, **b)
-    return new_f
+def ipy_events(f):
+    """Marker for methods that use greenlets to wait for kernel events (shell
+    channel replies). Does nothing, as python-client already wraps every handler
+    in its own greenlet. If python-client stops using greenlets, the following
+    would be necessary:
 
-class Threadsafe(object):
+        def new_f(*a,**b):
+            gr = greenlet.greenlet(f)
+            return gr.switch(*a, **b)
+        return new_f
+    """
+    return f
+
+class Async(object):
+    """Wrapper that defers all method calls on a plugin object to the event
+    loop, given that the object has vim attribute"""
     def __init__(self, wraps):
         self.wraps = wraps
 
     def __getattr__(self, name):
         return partial(self.wraps.vim.session.threadsafe_call, getattr(self.wraps, name))
 
-class MsgHandler(object):
+class ExclusiveHandler(object):
+    """Wrapper for buffering incoming messages from a asynchronous source.
+
+    Wraps an async message handler function and ensures a previous message will
+    be completely handled before next messsage is processed. Is used to avoid
+    iopub messages being printed out-of-order or even interleaved.
+    """
     def __init__(self, handler):
         self.msgs = deque()
         self.handler = handler
@@ -112,7 +123,7 @@ class IPythonPlugin(object):
         self.pending_shell_msgs = {}
 
         # make sure one message is handled at a time
-        self.on_iopub_msg = MsgHandler(self._on_iopub_msg)
+        self.on_iopub_msg = ExclusiveHandler(self._on_iopub_msg)
 
     def configure(self):
         #FIXME: rethink the entire configuration interface thing
@@ -154,15 +165,15 @@ class IPythonPlugin(object):
                 w.cursor = [len(self.buf), int(1e9)]
 
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
-    @ipy_async
+    @ipy_events
     def connect(self, argv):
         argv = [bytes_to_str(a) for a in argv]
         vim = self.vim
 
         self.ip_app = IPythonVimApp()
         # messages will be recieved in IPython's event loop threads
-        # so use the threadsafe self
-        self.ip_app.initialize(Threadsafe(self), argv)
+        # so use the async self
+        self.ip_app.initialize(Async(self), argv)
         self.kc = self.ip_app.kernel_client
         self.km = self.ip_app.kernel_manager
         self.has_connection = True
@@ -235,10 +246,10 @@ class IPythonPlugin(object):
         # racyness in seeing the correct current_buffer otherwise
         self.create_outbuf()
         # 'connect' waits for kernelinfo, and so must be async
-        Threadsafe(self).connect(args)
+        Async(self).connect(args)
 
     @neovim.function("IPyRun")
-    @ipy_async
+    @ipy_events
     def ipy_run(self, args):
         (code,) = args
         code = bytes_to_str(code)
@@ -257,7 +268,7 @@ class IPythonPlugin(object):
                 self.append_outbuf(p['text'])
 
     @neovim.function("IPyComplete")
-    @ipy_async
+    @ipy_events
     def ipy_complete(self,args):
         line = self.vim.current.line
         #FIXME: (upstream) this sometimes get wrong if 
@@ -279,7 +290,7 @@ class IPythonPlugin(object):
         self.vim.command("call complete({}, {})".format(start,matches))
 
     @neovim.function("IPyObjInfo")
-    @ipy_async
+    @ipy_events
     def on_ipy_objinfo(self, args):
         word, level = args
         word = bytes_to_str(word)
