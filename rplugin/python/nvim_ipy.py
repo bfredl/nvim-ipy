@@ -161,9 +161,7 @@ class IPythonPlugin(object):
     def connect(self, argv):
         argv = [bytes_to_str(a) for a in argv]
         global py3_hack
-        self.configure()
         vim = self.vim
-        self.create_outbuf()
 
         # hack for IPython2.x
         if not ipy3 and len(argv) >= 2 and argv[:2] == ["--kernel", "python3"]:
@@ -204,6 +202,8 @@ class IPythonPlugin(object):
                 ]
         self.buf[:0] = banner
 
+        # TODO: we might want to wrap this in a sync call
+        # to avoid racyness with user interaction
         w0 = vim.current.window
         if vim.current.buffer != self.buf:
             for w in vim.windows:
@@ -216,6 +216,7 @@ class IPythonPlugin(object):
         # FIXME: formatting is lost if shell window is closed+reopened
         for i in range(len(banner)):
             vim.eval("matchaddpos('Comment', [{}])".format(i+1))
+
         vim.vars["ipy_regex_in"] = self.re_in
         vim.vars["ipy_regex_out"] = self.re_out
         vim.eval(r"matchadd('IPyIn', g:ipy_regex_in)")
@@ -238,9 +239,14 @@ class IPythonPlugin(object):
     def ignore(self, msg_id):
         self.handle(msg_id, None)
 
-    @neovim.function("IPyConnect")
+    @neovim.function("IPyConnect", sync=True)
     def ipy_connect(self, args):
-        self.connect(args)
+        self.configure()
+        # create buffer synchronously, as there is slight
+        # racyness in seeing the correct current_buffer otherwise
+        self.create_outbuf()
+        # 'connect' waits for kernelinfo, and so must be async
+        Threadsafe(self).connect(args)
 
     @neovim.function("IPyRun")
     @ipy_async
@@ -266,7 +272,7 @@ class IPythonPlugin(object):
     def ipy_complete(self,args):
         line = self.vim.current.line
         #FIXME: (upstream) this sometimes get wrong if 
-        #completi:g just after entering insert mode:
+        #completing just after entering insert mode:
         #pos = self.vim.current.buffer.mark(".")[1]+1
         pos = int(self.vim.eval("col('.')"))-1
 
