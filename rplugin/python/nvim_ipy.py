@@ -19,8 +19,6 @@ from traceback import format_exc
 # from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
 strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
 
-py3_hack = False
-
 import logging
 logger = logging.getLogger(__name__)
 error, debug, info, warn = (logger.error, logger.debug, logger.info, logger.warn,)
@@ -35,7 +33,6 @@ class RedirectingKernelManager(KernelManager):
         self._null = open("/dev/null","wb",0)
         b['stdout'] = self._null.fileno()
         b['stderr'] = self._null.fileno()
-        if py3_hack: cmd[0] = "python3"
         return super(RedirectingKernelManager, self)._launch_kernel(cmd, **b)
 
 class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
@@ -160,15 +157,7 @@ class IPythonPlugin(object):
     @ipy_async
     def connect(self, argv):
         argv = [bytes_to_str(a) for a in argv]
-        global py3_hack
         vim = self.vim
-
-        # hack for IPython2.x
-        if not ipy3 and len(argv) >= 2 and argv[:2] == ["--kernel", "python3"]:
-            del argv[:2]
-            py3_hack = True
-        else:
-            py3_hack = False
 
         self.ip_app = IPythonVimApp()
         # messages will be recieved in IPython's event loop threads
