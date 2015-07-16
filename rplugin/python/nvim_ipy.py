@@ -7,7 +7,6 @@ import re
 import neovim
 import IPython
 ipy3 = IPython.version_info[0] >= 3
-from IPython.utils.py3compat import PY3, decode, bytes_to_str, unicode_type
 from IPython.kernel import KernelClient, KernelManager
 if ipy3:
     from IPython.kernel.threaded import ThreadedKernelClient
@@ -111,8 +110,6 @@ class ExclusiveHandler(object):
                 self.handler(self.msgs.popleft())
             self.is_active = False
 
-# TODO: I would like a hook that also decodes on the rplugin callbacks
-# so that all bytes_to_str() below can be eliminated
 @neovim.plugin
 class IPythonPlugin(object):
     def __init__(self, vim):
@@ -167,7 +164,6 @@ class IPythonPlugin(object):
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
     @ipy_events
     def connect(self, argv):
-        argv = [bytes_to_str(a) for a in argv]
         vim = self.vim
 
         self.ip_app = IPythonVimApp()
@@ -252,7 +248,6 @@ class IPythonPlugin(object):
     @ipy_events
     def ipy_run(self, args):
         (code,) = args
-        code = bytes_to_str(code)
         if self.km and not self.km.is_alive():
             choice = int(self.vim.eval("confirm('Kernel died. Restart?', '&Yes\n&No')"))
             if choice == 1:
@@ -293,7 +288,6 @@ class IPythonPlugin(object):
     @ipy_events
     def ipy_objinfo(self, args):
         word, level = args
-        word = bytes_to_str(word)
         if ipy3:
             #TODO: send entire line
             reply = self.waitfor(self.kc.inspect(word, None, level))
