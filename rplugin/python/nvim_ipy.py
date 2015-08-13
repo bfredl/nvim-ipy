@@ -211,12 +211,11 @@ class IPythonPlugin(object):
         vim.command("set ft={}".format(lang))
         # FIXME: formatting is lost if shell window is closed+reopened
         for i in range(len(banner)):
-            vim.eval("matchaddpos('Comment', [{}])".format(i+1))
+            vim.funcs.matchaddpos('Comment', [i+1])
 
-        vim.vars["ipy_regex_in"] = self.re_in
-        vim.vars["ipy_regex_out"] = self.re_out
-        vim.eval(r"matchadd('IPyIn', g:ipy_regex_in)")
-        vim.eval(r"matchadd('IPyOut', g:ipy_regex_out)")
+        vim.funcs.matchadd('IPyIn', self.re_in)
+        vim.funcs.matchadd('IPyOut', self.re_out)
+
 
         vim.current.window = w0
 
@@ -249,7 +248,7 @@ class IPythonPlugin(object):
     def ipy_run(self, args):
         (code,) = args
         if self.km and not self.km.is_alive():
-            choice = int(self.vim.eval("confirm('Kernel died. Restart?', '&Yes\n&No')"))
+            choice = int(self.vim.funcs.confirm('Kernel died. Restart?', '&Yes\n&No'))
             if choice == 1:
                 self.km.restart_kernel(True)
             return
@@ -269,7 +268,7 @@ class IPythonPlugin(object):
         #FIXME: (upstream) this sometimes get wrong if 
         #completing just after entering insert mode:
         #pos = self.vim.current.buffer.mark(".")[1]+1
-        pos = int(self.vim.eval("col('.')"))-1
+        pos = self.vim.funcs.col('.')-1
 
         if ipy3:
             reply = self.waitfor(self.kc.complete(line, pos))
@@ -281,8 +280,7 @@ class IPythonPlugin(object):
             start = content["cursor_start"]+1
         else:
             start = pos-len(content['matched_text'])+1
-        matches = json.dumps(content['matches'])
-        self.vim.command("call complete({}, {})".format(start,matches))
+        self.vim.funcs.complete(start, content['matches'])
 
     @neovim.function("IPyObjInfo")
     @ipy_events
@@ -374,5 +372,4 @@ class IPythonPlugin(object):
         self.disp_status("DEAD")
 
     def on_stdin_msg(self, msg):
-        self.vim.vars['ipy_prompt'] = "(IPy) " + msg["content"]["prompt"]
-        self.kc.input(self.vim.eval("input(g:ipy_prompt)"))
+        self.kc.input(self.vim.funcs.input("(IPy) " + msg["content"]["prompt"]))
