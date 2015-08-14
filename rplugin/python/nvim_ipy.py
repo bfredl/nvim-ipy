@@ -6,10 +6,8 @@ import json
 import re
 import neovim
 import IPython
-ipy3 = IPython.version_info[0] >= 3
-from IPython.kernel import KernelClient, KernelManager
-if ipy3:
-    from IPython.kernel.threaded import ThreadedKernelClient
+from IPython.kernel import KernelManager
+from IPython.kernel.threaded import ThreadedKernelClient
 from IPython.core.application import BaseIPythonApplication
 from IPython.consoleapp import IPythonConsoleApp
 import greenlet
@@ -36,9 +34,7 @@ class RedirectingKernelManager(KernelManager):
 
 class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
     # don't use blocking client; we override call_handlers below
-    kernel_client_class = KernelClient
-    if ipy3:
-        kernel_client_class = ThreadedKernelClient
+    kernel_client_class = ThreadedKernelClient
     kernel_manager_class = RedirectingKernelManager
     aliases = IPythonConsoleApp.aliases #this the way?
     flags = IPythonConsoleApp.flags
@@ -146,7 +142,7 @@ class IPythonPlugin(object):
         buf = vim.current.buffer
         buf.options["swapfile"] = False
         buf.options["buftype"] = "nofile"
-        buf.name = "[ipython]"
+        buf.name = "[jupyter]"
         vim.current.window = w0
         self.buf = buf
 
@@ -176,12 +172,8 @@ class IPythonPlugin(object):
 
         reply = self.waitfor(self.kc.kernel_info())
         c = reply['content']
-        if ipy3:
-            lang = c['language_info']['name']
-            langver = c['language_info']['version']
-        else:
-            lang = c['language']
-            langver = '.'.join(str(i) for i in c['language_version'])
+        lang = c['language_info']['name']
+        langver = c['language_info']['version']
 
         try:
             ipy_version = c['ipython_version']
@@ -270,43 +262,25 @@ class IPythonPlugin(object):
         #pos = self.vim.current.buffer.mark(".")[1]+1
         pos = self.vim.funcs.col('.')-1
 
-        if ipy3:
-            reply = self.waitfor(self.kc.complete(line, pos))
-        else:
-            reply = self.waitfor(self.kc.complete('', line, pos))
+        reply = self.waitfor(self.kc.complete(line, pos))
         content = reply["content"]
         #TODO: check if position is still valid
-        if ipy3:
-            start = content["cursor_start"]+1
-        else:
-            start = pos-len(content['matched_text'])+1
+        start = content["cursor_start"]+1
         self.vim.funcs.complete(start, content['matches'])
 
     @neovim.function("IPyObjInfo")
     @ipy_events
     def ipy_objinfo(self, args):
         word, level = args
-        if ipy3:
-            #TODO: send entire line
-            reply = self.waitfor(self.kc.inspect(word, None, level))
-        else:
-            reply = self.waitfor(self.kc.object_info(word, level))
+        #TODO: send entire line
+        reply = self.waitfor(self.kc.inspect(word, None, level))
 
         c = reply['content']
         if not c['found']:
             self.append_outbuf("not found: {}\n".format(o['name']))
             return
         self.append_outbuf("\n")
-        if ipy3:
-            self.append_outbuf(c['data']['text/plain']+"\n")
-        else:
-            for field in ['name','namespace','type_name','base_class','length','string_form',
-                'file','definition','source','docstring']:
-                if c.get(field) is None:
-                    continue
-                sep = '\n' if c[field].count('\n') else ' '
-                #TODO: option for separate doc buffer
-                self.append_outbuf('{}:{}{}\n'.format(field,sep,c[field].rstrip()))
+        self.append_outbuf(c['data']['text/plain']+"\n")
 
     @neovim.function("IPyInterrupt")
     def ipy_interrupt(self, args):
@@ -344,7 +318,7 @@ class IPythonPlugin(object):
                 self.append_outbuf('\n'.join(c['traceback']) + '\n')
             elif t == 'stream':
                 #perhaps distinguish stderr using gutter marks?
-                self.append_outbuf(c['text'] if ipy3 else c['data'])
+                self.append_outbuf(c['text'])
             elif t == 'display_data':
                 d = c['data']['text/plain']
                 self.append_outbuf(d + '\n')
