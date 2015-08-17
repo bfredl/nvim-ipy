@@ -5,11 +5,22 @@ import os, sys
 import json
 import re
 import neovim
-import IPython
-from IPython.kernel import KernelManager
-from IPython.kernel.threaded import ThreadedKernelClient
-from IPython.core.application import BaseIPythonApplication
-from IPython.consoleapp import IPythonConsoleApp
+
+try:
+    from jupyter_client import KernelManager
+    from jupyter_client.threaded import ThreadedKernelClient
+    from jupyter_core.application import JupyterApp
+    from jupyter_client.consoleapp import JupyterConsoleApp
+    from jupyter_core import version_info
+    kind = "Jupyter" # :)
+except:
+    from IPython.kernel import KernelManager
+    from IPython.kernel.threaded import ThreadedKernelClient
+    from IPython.core.application import BaseIPythonApplication as JupyterApp
+    from IPython.consoleapp import IPythonConsoleApp as JupyterConsoleApp
+    from IPython import version_info
+    kind = "IPython" # plz upgrade
+
 import greenlet
 from traceback import format_exc
 
@@ -32,12 +43,12 @@ class RedirectingKernelManager(KernelManager):
         b['stderr'] = self._null.fileno()
         return super(RedirectingKernelManager, self)._launch_kernel(cmd, **b)
 
-class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
+class JupyterVimApp(JupyterApp, JupyterConsoleApp):
     # don't use blocking client; we override call_handlers below
     kernel_client_class = ThreadedKernelClient
     kernel_manager_class = RedirectingKernelManager
-    aliases = IPythonConsoleApp.aliases #this the way?
-    flags = IPythonConsoleApp.flags
+    aliases = JupyterConsoleApp.aliases #this the way?
+    flags = JupyterConsoleApp.flags
     def init_kernel_client(self):
         #TODO: cleanup this (by subclassing kernel_clint or something)
         if self.kernel_manager is not None:
@@ -61,8 +72,9 @@ class IPythonVimApp(BaseIPythonApplication, IPythonConsoleApp):
 
     def initialize(self, target, argv):
         self.target = target
-        super(IPythonVimApp, self).initialize(argv)
-        IPythonConsoleApp.initialize(self, argv)
+        super(JupyterVimApp, self).initialize(argv)
+        JupyterConsoleApp.initialize(self, argv)
+
 
 def ipy_events(f):
     """Marker for methods that use greenlets to wait for kernel events (shell
@@ -162,7 +174,7 @@ class IPythonPlugin(object):
     def connect(self, argv):
         vim = self.vim
 
-        self.ip_app = IPythonVimApp()
+        self.ip_app = JupyterVimApp()
         # messages will be recieved in IPython's event loop threads
         # so use the async self
         self.ip_app.initialize(Async(self), argv)
@@ -178,13 +190,13 @@ class IPythonPlugin(object):
         try:
             ipy_version = c['ipython_version']
         except KeyError:
-            ipy_version = IPython.version_info
+            ipy_version = version_info
         vdesc = '.'.join(str(i) for i in ipy_version[:3])
-        if ipy_version[3] != '':
+        if len(ipy_version) >= 4 and ipy_version[3] != '':
             vdesc += '-' + ipy_version[3]
         banner = [
                 "nvim-ipy: Jupyter shell for Neovim",
-                "IPython {}".format(vdesc),
+                "{} {}".format(kind, vdesc),
                 "language: {} {}".format(lang, langver),
                 "",
                 ]
