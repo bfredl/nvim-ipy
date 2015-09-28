@@ -75,6 +75,11 @@ class JupyterVimApp(JupyterApp, JupyterConsoleApp):
         super(JupyterVimApp, self).initialize(argv)
         JupyterConsoleApp.initialize(self, argv)
 
+# for quick stupid debugging, do
+# app = JupyterVimApp(test_events(), [])
+class test_events:
+    def __getattr__(self, nam):
+        return partial(print, nam)
 
 def ipy_events(f):
     """Marker for methods that use greenlets to wait for kernel events (shell
@@ -130,6 +135,7 @@ class IPythonPlugin(object):
 
         # make sure one message is handled at a time
         self.on_iopub_msg = ExclusiveHandler(self._on_iopub_msg)
+        self.ip_app = JupyterVimApp()
 
     def configure(self):
         #FIXME: rethink the entire configuration interface thing
@@ -175,10 +181,14 @@ class IPythonPlugin(object):
     def connect(self, argv):
         vim = self.vim
 
-        self.ip_app = JupyterVimApp()
         # messages will be recieved in IPython's event loop threads
         # so use the async self
-        self.ip_app.initialize(Async(self), argv)
+        try:
+            self.ip_app.initialize(Async(self), argv)
+        except SystemExit as e:
+            self.vim.err_write('was error\n')
+            return
+
         self.kc = self.ip_app.kernel_client
         self.km = self.ip_app.kernel_manager
         self.has_connection = True
