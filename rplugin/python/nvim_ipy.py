@@ -119,6 +119,7 @@ class ExclusiveHandler(object):
             self.is_active = False
 
 @neovim.plugin
+@neovim.encoding(True)
 class IPythonPlugin(object):
     def __init__(self, vim):
         self.vim = vim
