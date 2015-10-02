@@ -2,6 +2,7 @@ from __future__ import print_function, division
 from functools import partial, wraps
 from collections import deque
 import os, sys
+import time, datetime
 import json
 import re
 import neovim
@@ -119,7 +120,6 @@ class ExclusiveHandler(object):
             self.is_active = False
 
 @neovim.plugin
-@neovim.encoding(True)
 class IPythonPlugin(object):
     def __init__(self, vim):
         self.vim = vim
@@ -155,7 +155,8 @@ class IPythonPlugin(object):
         buf = vim.current.buffer
         buf.options["swapfile"] = False
         buf.options["buftype"] = "nofile"
-        buf.name = "[jupyter]"
+        self.base_buf_name = "[jupyter]"
+        buf.name = self.base_buf_name
         vim.current.window = w0
         self.buf = buf
 
@@ -258,6 +259,9 @@ class IPythonPlugin(object):
                 self.km.restart_kernel(True)
             return
 
+        start_time = time.time()
+        self.buf.name = self.base_buf_name + "[*]({})".format(datetime.datetime.now().strftime('%H:%M:%S'))
+
         reply = self.waitfor(self.kc.execute(code))
         content = reply['content']
         payload = content['payload']
@@ -265,7 +269,7 @@ class IPythonPlugin(object):
             if p.get("source") == "page":
                 # TODO: if this is long, open separate window
                 self.append_outbuf(p['text'])
-
+        self.buf.name = self.base_buf_name + '({}s elapsed)'.format(time.time()-start_time) 
     @neovim.function("IPyComplete")
     @ipy_events
     def ipy_complete(self,args):
