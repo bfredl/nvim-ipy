@@ -251,14 +251,15 @@ class IPythonPlugin(object):
     @neovim.function("IPyRun")
     @ipy_events
     def ipy_run(self, args):
-        (code,) = args
+        code = args[0]
+        silent = bool(args[1]) if len(args) > 1 else False
         if self.km and not self.km.is_alive():
             choice = int(self.vim.funcs.confirm('Kernel died. Restart?', '&Yes\n&No'))
             if choice == 1:
                 self.km.restart_kernel(True)
             return
 
-        reply = self.waitfor(self.kc.execute(code))
+        reply = self.waitfor(self.kc.execute(code,silent=silent))
         content = reply['content']
         payload = content['payload']
         for p in payload:

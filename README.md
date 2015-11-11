@@ -47,6 +47,8 @@ To your nvimrc and map to the generic bindings. For instance:
     map <silent> <c-s>   <Plug>(IPy-Run)
 
 ## Exported vimscript functions
-Most useful is `IPyRun("string of code")` which can be called to programmatically execute any code. This is useful to bind common commands to a key.
+Most useful is `IPyRun("string of code"[, silent])` which can be called to programmatically execute any code. The optional `silent` will avoid printing code and result to the console if nonzero. This is useful to bind common commands to a key. This will close all figures in matplotlib:
+
+    nnoremap <Leader>c :call IPyRun('close("all")',1)<cr>
 
 `IPyConnect(args...)` can likewise be used to connect with vimscript generated arguments.
