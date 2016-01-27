@@ -24,7 +24,7 @@ except:
 import greenlet
 from traceback import format_exc
 
-from nvim_ipy.ansi_code_processor import AnsiCodeProcessor
+from .ansi_code_processor import AnsiCodeProcessor
 
 # from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
 strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
@@ -152,7 +152,7 @@ class IPythonPlugin(object):
     def append_outbuf(self, data):
         self.hl_handler.reset_sgr()
         data = strip_ansi.sub('', data)
-        lineno = len(self.buf)
+        lineno = len(self.buf)-1
         lastline = self.buf[-1]
 
         txt = lastline + data
@@ -163,7 +163,7 @@ class IPythonPlugin(object):
         return lineno
 
     def append_outbuf_esc(self, data):
-        lineno = len(self.buf)
+        lineno = len(self.buf)-1
         lastline = self.buf[-1]
         colpos = len(lastline)+1
 
@@ -226,7 +226,7 @@ class IPythonPlugin(object):
                 ]
         self.buf[:0] = banner
         for i in range(len(banner)):
-            self.add_highlight('Comment', i+1)
+            self.add_highlight('Comment', i)
 
         # TODO: we might want to wrap this in a sync call
         # to avoid racyness with user interaction
