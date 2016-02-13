@@ -52,3 +52,5 @@ Most useful is `IPyRun("string of code"[, silent])` which can be called to progr
     nnoremap <Leader>c :call IPyRun('close("all")',1)<cr>
 
 `IPyConnect(args...)` can likewise be used to connect with vimscript generated arguments.
+
+`IPyOmniFunc` can be used as `&completefunc`/`&omnifunc` for use with a completer framework. Note that unlike `<Plug><IPy-Complete)` this is synchronous and waits for the kernel, so if the kernel hangs this might hang nvim! For use with async completion like Deoplete it would be better to create a dedicated source.

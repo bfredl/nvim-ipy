@@ -255,7 +255,7 @@ class IPythonPlugin(object):
     @neovim.function("IPyComplete")
     def ipy_complete(self,args):
         line = self.vim.current.line
-        #FIXME: (upstream) this sometimes get wrong if 
+        #FIXME: (upstream) this sometimes get wrong if
         #completing just after entering insert mode:
         #pos = self.vim.current.buffer.mark(".")[1]+1
         pos = self.vim.funcs.col('.')-1
@@ -265,6 +265,23 @@ class IPythonPlugin(object):
         #TODO: check if position is still valid
         start = content["cursor_start"]+1
         self.vim.funcs.complete(start, content['matches'])
+
+    @neovim.function("IPyOmniFunc", sync=True)
+    def ipy_omnifunc(self,args):
+        findstart, base = args
+        if findstart:
+            if not self.has_connection:
+                return False
+            line = self.vim.current.line
+            pos = self.vim.funcs.col('.')-1
+
+            reply = self.waitfor(self.kc.complete(line, pos))
+            content = reply["content"]
+            start = content["cursor_start"]
+            self._matches = content['matches']
+            return start
+        else:
+            return self._matches
 
     @neovim.function("IPyObjInfo")
     def ipy_objinfo(self, args):
