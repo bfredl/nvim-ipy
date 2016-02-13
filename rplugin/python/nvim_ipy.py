@@ -76,19 +76,6 @@ class JupyterVimApp(JupyterApp, JupyterConsoleApp):
         JupyterConsoleApp.initialize(self, argv)
 
 
-def ipy_events(f):
-    """Marker for methods that use greenlets to wait for kernel events (shell
-    channel replies). Does nothing, as python-client already wraps every handler
-    in its own greenlet. If python-client stops using greenlets, the following
-    would be necessary:
-
-        def new_f(*a,**b):
-            gr = greenlet.greenlet(f)
-            return gr.switch(*a, **b)
-        return new_f
-    """
-    return f
-
 class Async(object):
     """Wrapper that defers all method calls on a plugin object to the event
     loop, given that the object has vim attribute"""
@@ -171,7 +158,6 @@ class IPythonPlugin(object):
                 w.cursor = [len(self.buf), int(1e9)]
 
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
-    @ipy_events
     def connect(self, argv):
         vim = self.vim
 
@@ -249,7 +235,6 @@ class IPythonPlugin(object):
         Async(self).connect(args)
 
     @neovim.function("IPyRun")
-    @ipy_events
     def ipy_run(self, args):
         code = args[0]
         silent = bool(args[1]) if len(args) > 1 else False
@@ -268,7 +253,6 @@ class IPythonPlugin(object):
                 self.append_outbuf(p['text'])
 
     @neovim.function("IPyComplete")
-    @ipy_events
     def ipy_complete(self,args):
         line = self.vim.current.line
         #FIXME: (upstream) this sometimes get wrong if 
@@ -283,7 +267,6 @@ class IPythonPlugin(object):
         self.vim.funcs.complete(start, content['matches'])
 
     @neovim.function("IPyObjInfo")
-    @ipy_events
     def ipy_objinfo(self, args):
         word, level = args
         #TODO: send entire line
