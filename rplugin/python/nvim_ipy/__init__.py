@@ -145,14 +145,11 @@ class IPythonPlugin(object):
         self.hl_handler = AnsiCodeProcessor()
         self.hl_handler.bold_text_enabled = True
 
-    def add_highlight(self, grp, row, start=1, end=-1):
-        self.vim.session.request('buffer_add_highlight', self.buf, -1, grp, row, start, end)
-
     # FIXME: encoding
     def append_outbuf(self, data):
         self.hl_handler.reset_sgr()
         data = strip_ansi.sub('', data)
-        lineno = len(self.buf)-1
+        lineno = len(self.buf)
         lastline = self.buf[-1]
 
         txt = lastline + data
@@ -165,7 +162,7 @@ class IPythonPlugin(object):
     def append_outbuf_esc(self, data):
         lineno = len(self.buf)-1
         lastline = self.buf[-1]
-        colpos = len(lastline)+1
+        colpos = len(lastline)
 
         textdata = strip_ansi.sub('', data)
         txt = lastline + textdata
@@ -185,9 +182,9 @@ class IPythonPlugin(object):
                 else:
                     name = None
                 if name:
-                    self.add_highlight(name, lineno+i, colpos, colpos+l-1)
+                    self.buf.add_highlight(name, lineno+i, colpos, colpos+l)
                 colpos += l
-            colpos = 1
+            colpos = 0
 
         for w in self.vim.windows:
             if w.buffer == self.buf:
@@ -226,7 +223,7 @@ class IPythonPlugin(object):
                 ]
         self.buf[:0] = banner
         for i in range(len(banner)):
-            self.add_highlight('Comment', i)
+            self.buf.add_highlight('Comment', i)
 
         # TODO: we might want to wrap this in a sync call
         # to avoid racyness with user interaction
@@ -354,13 +351,13 @@ class IPythonPlugin(object):
                     code = code[:self.max_in] + ['.....']
                 sep = '\n'+' '*len(prompt)
                 line = self.append_outbuf_esc(u'\n{}{}\n'.format(prompt, sep.join(code)))
-                self.add_highlight('IPyIn', line+1, 1, len(prompt))
+                self.buf.add_highlight('IPyIn', line+1, 0, len(prompt))
             elif t in ['pyout', 'execute_result']:
                 no = c['execution_count']
                 res = c['data']['text/plain']
                 prompt = self.prompt_out.format(no)
                 line = self.append_outbuf_esc((u'{}{}\n').format(prompt, res.rstrip()))
-                self.add_highlight('IPyOut', line, 1, len(prompt))
+                self.buf.add_highlight('IPyOut', line, 0, len(prompt))
             elif t in ['pyerr', 'error']:
                 #TODO: this should be made language specific
                 # as the amt of info in 'traceback' differs
