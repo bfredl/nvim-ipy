@@ -13,6 +13,12 @@ noremap <Plug>(IPy-Terminate) :call IPyTerminate()<cr>
 hi IPyIn ctermfg=green cterm=bold
 hi IPyOut ctermfg=red cterm=bold
 
+hi IPyBold cterm=bold
+for i in range(0,8)
+    execute "hi IPyFg".i." ctermfg=".i
+    execute "hi IPyFg".i."Bold ctermfg=".i." cterm=bold"
+endfor
+
 function! s:get_current_word()
     let isk_save = &isk
     let &isk = '@,48-57,_,192-255,.'

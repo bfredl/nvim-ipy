@@ -46,6 +46,19 @@ To your nvimrc and map to the generic bindings. For instance:
 
     map <silent> <c-s>   <Plug>(IPy-Run)
 
+## Options
+NB: the option system will soon be rewritten to allow changing options while the plugin is running,
+but for now you can set:
+
+Option                    | default     | Action
+------------------------- | ----------  | ------
+`g:ipy_set_ft`            | 0 (false)   | set filetype of output buffer to kernel language
+`g:ipy_highlight`         | 1 (true)    | add highlights for ANSI sequences in the output
+`g:ipy_truncate_input`    | 0           | when > 0, don't echo inputs larger than this number of lines
+`g:ipy_shortprompt`       | 0 (false)   | use shorter prompts (TODO: let user set arbitrary format)
+
+Note that the filetype syntax highlight could interact badly with the highlights sent from the kernel as ANSI sequences (in ipython tracebacks, for instance). Therefore both are not enabled by default. I might look into a better solution for this.
+
 ## Exported vimscript functions
 Most useful is `IPyRun("string of code"[, silent])` which can be called to programmatically execute any code. The optional `silent` will avoid printing code and result to the console if nonzero. This is useful to bind common commands to a key. This will close all figures in matplotlib:
 

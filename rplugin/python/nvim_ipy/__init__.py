@@ -24,6 +24,8 @@ except:
 import greenlet
 from traceback import format_exc
 
+from .ansi_code_processor import AnsiCodeProcessor
+
 # from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
 strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
 
@@ -120,18 +122,16 @@ class IPythonPlugin(object):
 
     def configure(self):
         #FIXME: rethink the entire configuration interface thing
+        # we should use dict notifictaions for runtime settings
+        self.do_filetype = self.vim.vars.get("ipy_set_ft", 0)
+        self.do_highlight = self.vim.vars.get("ipy_highlight", 1)
         self.max_in = self.vim.vars.get("ipy_truncate_input", 0)
         if self.vim.vars.get("ipy_shortprompt", False):
-            self.prompt_in = u" {}: "
-            self.prompt_out = u"_{}: "
-            #TODO: use concealends instead
-            self.re_in = r"^ [0-9]\+:"
-            self.re_out = r"_[0-9]\+:"
+            self.prompt_in = u"{}: "
+            self.prompt_out = u"{}: "
         else:
             self.prompt_in = u"In[{}]: "
             self.prompt_out = u"Out[{}]: "
-            self.re_in = r"^In"
-            self.re_out = r"^Out"
 
     def create_outbuf(self):
         vim = self.vim
@@ -145,17 +145,43 @@ class IPythonPlugin(object):
         buf.name = "[jupyter]"
         vim.current.window = w0
         self.buf = buf
+        self.hl_handler = AnsiCodeProcessor()
+        self.hl_handler.bold_text_enabled = True
 
     def append_outbuf(self, data):
-        # TODO: replace with some fancy syntax marks instead
-        data = strip_ansi.sub('', data)
+        #self.hl_handler.reset_sgr()
+        lineno = len(self.buf)-1
         lastline = self.buf[-1]
 
-        txt = lastline + data
+        textdata = strip_ansi.sub('', data)
+        txt = lastline + textdata
         self.buf[-1:] = txt.split("\n") # not splitlines
+
+        if self.do_highlight:
+            colpos = len(lastline)
+            for i,line in enumerate(data.split("\n")):
+                for chunk in self.hl_handler.split_string(line):
+                    l = len(chunk)
+                    bold = self.hl_handler.bold or self.hl_handler.intensity > 0
+                    color = self.hl_handler.foreground_color
+                    if color and color > 8: color = None
+
+                    if color is not None:
+                        name = "IPyFg{}".format(color)
+                        if bold: name += "Bold"
+                    elif bold:
+                        name = "IPyBold"
+                    else:
+                        name = None
+                    if name:
+                        self.buf.add_highlight(name, lineno+i, colpos, colpos+l)
+                    colpos += l
+                colpos = 0
+
         for w in self.vim.windows:
             if w.buffer == self.buf:
                 w.cursor = [len(self.buf), int(1e9)]
+        return lineno
 
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
     def connect(self, argv):
@@ -188,6 +214,8 @@ class IPythonPlugin(object):
                 "",
                 ]
         self.buf[:0] = banner
+        for i in range(len(banner)):
+            self.buf.add_highlight('Comment', i)
 
         # TODO: we might want to wrap this in a sync call
         # to avoid racyness with user interaction
@@ -199,14 +227,9 @@ class IPythonPlugin(object):
                     break
             else:
                 return #reopen window?
-        vim.command("set ft={}".format(lang))
-        # FIXME: formatting is lost if shell window is closed+reopened
-        for i in range(len(banner)):
-            vim.funcs.matchaddpos('Comment', [i+1])
 
-        vim.funcs.matchadd('IPyIn', self.re_in)
-        vim.funcs.matchadd('IPyOut', self.re_out)
-
+        if self.do_filetype:
+            vim.command("set ft={}".format(lang))
 
         vim.current.window = w0
 
@@ -293,8 +316,7 @@ class IPythonPlugin(object):
         if not c['found']:
             self.append_outbuf("not found: {}\n".format(o['name']))
             return
-        self.append_outbuf("\n")
-        self.append_outbuf(c['data']['text/plain']+"\n")
+        self.append_outbuf("\n"+c['data']['text/plain']+"\n")
 
     @neovim.function("IPyInterrupt")
     def ipy_interrupt(self, args):
@@ -321,11 +343,14 @@ class IPythonPlugin(object):
                 if self.max_in and len(code) > self.max_in:
                     code = code[:self.max_in] + ['.....']
                 sep = '\n'+' '*len(prompt)
-                self.append_outbuf(u'\n{}{}\n'.format(prompt, sep.join(code)))
+                line = self.append_outbuf(u'\n{}{}\n'.format(prompt, sep.join(code)))
+                self.buf.add_highlight('IPyIn', line+1, 0, len(prompt))
             elif t in ['pyout', 'execute_result']:
                 no = c['execution_count']
                 res = c['data']['text/plain']
-                self.append_outbuf((self.prompt_out + u'{}\n').format(no, res.rstrip()))
+                prompt = self.prompt_out.format(no)
+                line = self.append_outbuf((u'{}{}\n').format(prompt, res.rstrip()))
+                self.buf.add_highlight('IPyOut', line, 0, len(prompt))
             elif t in ['pyerr', 'error']:
                 #TODO: this should be made language specific
                 # as the amt of info in 'traceback' differs
@@ -338,7 +363,6 @@ class IPythonPlugin(object):
                 self.append_outbuf(d + '\n')
         except Exception as e:
             debug("Couldn't handle iopub message %r: %s", m, format_exc())
-
 
 
     def on_shell_msg(self, m):
