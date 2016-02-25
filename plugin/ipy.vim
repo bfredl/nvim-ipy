@@ -1,5 +1,5 @@
 command! -nargs=* IPython :call IPyConnect(<f-args>)
-command! -nargs=* IPython3 :call IPyConnect("--kernel", "python3")
+command! -nargs=* IPython2 :call IPyConnect("--kernel", "python2")
 command! -nargs=* IJulia :call IPyConnect("--kernel", "julia-0.4")
 
 nnoremap <Plug>(IPy-Run) :call IPyRun(getline('.'))<cr>

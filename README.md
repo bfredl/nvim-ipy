@@ -13,17 +13,19 @@ It doesn't have all features of `vim-ipython`, but it has better support for lon
 
 Action                  | command
 ----------------------- | -------
-Start new python kernel |  `:IPython` <br> `:IPython3` (for python3 kernel)
+Start new python kernel |  `:IPython` <br> `:IPython2` (for python2 kernel)
 Connect to existing kernel | `:IPython --existing`
 Start kernel in different language | `:IPython --kernel julia-0.4`
 
-Kernelspec can be used to launch a python3 kernel from nvim-ipy when running in the python2 host (default), the same way as from the Jupyter console and notebook. Use `:IPython --kernel python3` or the `:IPython3` shortcut. You might need to execute
+This plugin runs in the python3 host by default, but the kernel process don't need to be the same version of python as this plugin runs in.  Kernelspec can be used to launch a python2 kernel, the same way as from the Jupyter console and notebook. Use `:IPython --kernel python2` or the `:IPython2` shortcut. You might need to execute
 
-    ipython3 kernelspec install-self --user
+    ipython2 kernelspec install-self --user
 
 on beforehand for this to work.  I have tested that this plugin also supports IJulia and IHaskell, but ideally it should work with any Jupyter kernel.
 
-This plugin runs in the python2 host by default, but it is also compatible with the python3 plugin host. There isn't yet any nice interface to configure this, but for now you can move `rplugin/python/nvim_ipy.py` to `rplugin/python3/nvim_ipy.py`, and then reexecute `:UpdateRemotePlugins`.  This will launch a python3 kernel per default.
+If you only have the python2 host installed, you could do
+`cd rplugin; ln -s python3 python`
+to run this plugin in the python2 host instead.
 
 ## Keybindings
 
