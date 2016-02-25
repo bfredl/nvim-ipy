@@ -1,5 +1,5 @@
 # nvim-ipy
-This is a IPython/Jupyter front-end for Neovim, partially based on [ivanov/vim-ipython](https://github.com/ivanov/vim-ipython), but refactored for nvim's plugin architechture and improved async event handling. IPython 3.x or Jupyter 4.x is required. It uses python2 per default; see below for notes on using python3. It has full support for non-python kernels.
+This is a IPython/Jupyter front-end for Neovim, partially based on [ivanov/vim-ipython](https://github.com/ivanov/vim-ipython), but refactored for nvim's plugin architechture and improved async event handling. IPython 3.x or Jupyter 4.x is required. It uses python3 per default; see below for notes on using python2. It has full support for non-python kernels.
 
 It doesn't have all features of `vim-ipython`, but it has better support for long-running commands that continously produce output, for instance this silly example:
 
@@ -17,7 +17,7 @@ Start new python kernel |  `:IPython` <br> `:IPython2` (for python2 kernel)
 Connect to existing kernel | `:IPython --existing`
 Start kernel in different language | `:IPython --kernel julia-0.4`
 
-This plugin runs in the python3 host by default, but the kernel process don't need to be the same version of python as this plugin runs in.  Kernelspec can be used to launch a python2 kernel, the same way as from the Jupyter console and notebook. Use `:IPython --kernel python2` or the `:IPython2` shortcut. You might need to execute
+This plugin runs in the python3 host by default, but the kernel process don't need to be the same version of python as the plugin runs in. Kernelspec can be used to launch a python2 kernel, the same way as from the Jupyter console and notebook. Use `:IPython --kernel python2` or the `:IPython2` shortcut. You might need to execute
 
     ipython2 kernelspec install-self --user
 
