@@ -10,13 +10,13 @@ noremap <Plug>(IPy-Interrupt) :call IPyInterrupt()<cr>
 noremap <Plug>(IPy-Terminate) :call IPyTerminate()<cr>
 
 " make this overrideable
-hi IPyIn ctermfg=green cterm=bold
-hi IPyOut ctermfg=red cterm=bold
-
-hi IPyBold cterm=bold
-for i in range(0,8)
-    execute "hi IPyFg".i." ctermfg=".i
-    execute "hi IPyFg".i."Bold ctermfg=".i." cterm=bold"
+hi IPyIn ctermfg=green cterm=bold guifg=LimeGreen gui=bold
+hi IPyOut ctermfg=red cterm=bold guifg=red gui=bold
+hi IPyBold cterm=bold gui=bold
+let s:colors = ["Black", "Red", "Green", "DarkYellow", "Blue", "DarkMagenta", "#00bbdd", "LightGray",
+             \  "Gray", "#ff4444", "LimeGreen", "Yellow", "LightBlue", "Magenta", "Cyan", "White"]
+for i in range(0,15)
+    execute "hi IPyFg".i." ctermfg=".i." guifg=".s:colors[i]
 endfor
 
 function! s:get_current_word()

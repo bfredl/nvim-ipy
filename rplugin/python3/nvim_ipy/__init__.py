@@ -164,17 +164,18 @@ class IPythonPlugin(object):
                     l = len(chunk)
                     bold = self.hl_handler.bold or self.hl_handler.intensity > 0
                     color = self.hl_handler.foreground_color
-                    if color and color > 8: color = None
+                    if color and color > 16: color = None
 
                     if color is not None:
+                        if bold and color < 8:
+                            color += 8 # be bright and shiny
                         name = "IPyFg{}".format(color)
-                        if bold: name += "Bold"
-                    elif bold:
-                        name = "IPyBold"
-                    else:
-                        name = None
-                    if name:
                         self.buf.add_highlight(name, lineno+i, colpos, colpos+l)
+
+                    if bold:
+                        name = "IPyBold"
+                        self.buf.add_highlight(name, lineno+i, colpos, colpos+l)
+
                     colpos += l
                 colpos = 0
 
