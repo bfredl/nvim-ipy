@@ -265,7 +265,10 @@ class IPythonPlugin(object):
         if self.km and not self.km.is_alive():
             choice = int(self.vim.funcs.confirm('Kernel died. Restart?', '&Yes\n&No'))
             if choice == 1:
-                self.km.restart_kernel(True)
+                if self.km.has_kernel:
+                    self.km.restart_kernel(True)
+                else:
+                    self.km.start_kernel(self.km._launch_args)
             return
 
         reply = self.waitfor(self.kc.execute(code,silent=silent))
