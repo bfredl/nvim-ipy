@@ -85,7 +85,7 @@ class Async(object):
         self.wraps = wraps
 
     def __getattr__(self, name):
-        return partial(self.wraps.vim.session.threadsafe_call, getattr(self.wraps, name))
+        return partial(self.wraps.vim.async_call, getattr(self.wraps, name))
 
 class ExclusiveHandler(object):
     """Wrapper for buffering incoming messages from a asynchronous source.
