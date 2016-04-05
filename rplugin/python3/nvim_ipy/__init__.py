@@ -268,7 +268,7 @@ class IPythonPlugin(object):
                 if self.km.has_kernel:
                     self.km.restart_kernel(True)
                 else:
-                    self.km.start_kernel(self.km._launch_args)
+                    self.km.start_kernel(**self.km._launch_args)
             return
 
         reply = self.waitfor(self.kc.execute(code,silent=silent))
