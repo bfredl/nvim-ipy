@@ -273,7 +273,7 @@ class IPythonPlugin(object):
 
         reply = self.waitfor(self.kc.execute(code,silent=silent))
         content = reply['content']
-        payload = content['payload']
+        payload = content.get('payload',())
         for p in payload:
             if p.get("source") == "page":
                 # TODO: if this is long, open separate window
