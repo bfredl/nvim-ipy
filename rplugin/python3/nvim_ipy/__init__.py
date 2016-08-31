@@ -317,10 +317,19 @@ class IPythonPlugin(object):
         reply = self.waitfor(self.kc.inspect(word, None, level))
 
         c = reply['content']
-        if not c['found']:
-            self.append_outbuf("not found: {}\n".format(o['name']))
-            return
-        self.append_outbuf("\n"+c['data']['text/plain']+"\n")
+        if c["status"] == "error":
+            l = self.append_outbuf("\nerror when inspecting {}: {}\n".format(word, c.get("ename", "")))
+            if self.do_highlight:
+                self.buf.add_highlight("Error", l+1, 0, -1)
+            if "traceback" in c:
+                self.append_outbuf('\n'.join(c['traceback'])+"\n")
+
+        elif not c.get('found'):
+            l = self.append_outbuf("\nnot found: {}\n".format(word))
+            if self.do_highlight:
+                self.buf.add_highlight("WarningMsg", l+1, 0, -1)
+        else:
+            self.append_outbuf("\n"+c['data']['text/plain']+"\n")
 
     @neovim.function("IPyInterrupt")
     def ipy_interrupt(self, args):
