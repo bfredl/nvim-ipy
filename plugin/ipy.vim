@@ -2,6 +2,8 @@ command! -nargs=* IPython :call IPyConnect(<f-args>)
 command! -nargs=* IPython2 :call IPyConnect("--kernel", "python2")
 command! -nargs=* IJulia :call IPyConnect("--kernel", "julia-0.4")
 
+command! IPySplitTerm :call <SID>split_term()
+
 nnoremap <Plug>(IPy-Run) :call IPyRun(getline('.'))<cr>
 vnoremap <Plug>(IPy-Run) :<c-u>call IPyRun(<SID>get_visual_selection())<cr>
 inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call IPyComplete()<cr>
@@ -18,6 +20,13 @@ let s:colors = ["Black", "Red", "Green", "DarkYellow", "Blue", "DarkMagenta", "#
 for i in range(0,15)
     execute "hi IPyFg".i." ctermfg=".i." guifg=".s:colors[i]
 endfor
+
+function! s:split_term()
+    let cfile = IPyConnFile()
+    new
+    call termopen(['jupyter', 'console', '--existing', cfile])
+    startinsert
+endfunction
 
 function! s:get_current_word()
     let isk_save = &isk

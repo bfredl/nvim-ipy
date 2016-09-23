@@ -339,6 +339,10 @@ class IPythonPlugin(object):
     def ipy_terminate(self, args):
         self.km.shutdown_kernel()
 
+    @neovim.function("IPyConnFile",sync=True)
+    def ipy_confile(self, args):
+        return self.ip_app.connection_file
+
     def _on_iopub_msg(self, m):
         #FIXME: figure out the smoothest way to to matchaddpos
         # (from a different window), or just use concealends
