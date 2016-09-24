@@ -5,6 +5,7 @@ import os, sys
 import json
 import re
 import neovim
+from neovim.api import NvimError
 
 from jupyter_client import KernelManager
 from jupyter_client.threaded import ThreadedKernelClient
@@ -372,6 +373,7 @@ class IPythonPlugin(object):
 
 
     def on_shell_msg(self, m):
+        self.last_msg = m
         debug('shell %s: %r', m['msg_type'], m['content'])
         msg_id = m['parent_header']['msg_id']
         try:
@@ -390,4 +392,16 @@ class IPythonPlugin(object):
         self.disp_status("DEAD")
 
     def on_stdin_msg(self, msg):
-        self.kc.input(self.vim.funcs.input("(IPy) " + msg["content"]["prompt"]))
+        self.last_msg = msg
+        try:
+            res = self.vim.funcs.input("(IPy) " + msg["content"]["prompt"])
+        except NvimError:
+            #TODO(nvim) return exceptions precisely
+            # for now assume keyboard interrupt
+            self.ipy_interrupt([])
+            return
+
+        if self.last_msg is msg:
+            # from jupyter_console, input should be considered to be interrupted
+            # if there was another message
+            self.kc.input(res)
