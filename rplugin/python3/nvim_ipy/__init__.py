@@ -6,20 +6,11 @@ import json
 import re
 import neovim
 
-try:
-    from jupyter_client import KernelManager
-    from jupyter_client.threaded import ThreadedKernelClient
-    from jupyter_core.application import JupyterApp
-    from jupyter_client.consoleapp import JupyterConsoleApp
-    from jupyter_core import version_info
-    kind = "Jupyter" # :)
-except:
-    from IPython.kernel import KernelManager
-    from IPython.kernel.threaded import ThreadedKernelClient
-    from IPython.core.application import BaseIPythonApplication as JupyterApp
-    from IPython.consoleapp import IPythonConsoleApp as JupyterConsoleApp
-    from IPython import version_info
-    kind = "IPython" # plz upgrade
+from jupyter_client import KernelManager
+from jupyter_client.threaded import ThreadedKernelClient
+from jupyter_core.application import JupyterApp
+from jupyter_client.consoleapp import JupyterConsoleApp
+from jupyter_core import version_info
 
 import greenlet
 from traceback import format_exc
@@ -57,6 +48,7 @@ class JupyterVimApp(JupyterApp, JupyterConsoleApp):
             self.kernel_client = self.kernel_manager.client()
         else:
             self.kernel_client = self.kernel_client_class(
+                                session=self.session,
                                 ip=self.ip,
                                 transport=self.transport,
                                 shell_port=self.shell_port,
@@ -188,10 +180,11 @@ class IPythonPlugin(object):
     def connect(self, argv):
         vim = self.vim
 
-        self.ip_app = JupyterVimApp()
-        # messages will be recieved in IPython's event loop threads
+        self.ip_app = JupyterVimApp.instance()
+        # messages will be recieved in Jupyter's event loop threads
         # so use the async self
         self.ip_app.initialize(Async(self), argv)
+        self.ip_app.start()
         self.kc = self.ip_app.kernel_client
         self.km = self.ip_app.kernel_manager
         self.has_connection = True
@@ -210,7 +203,7 @@ class IPythonPlugin(object):
             vdesc += '-' + ipy_version[3]
         banner = [
                 "nvim-ipy: Jupyter shell for Neovim",
-                "{} {}".format(kind, vdesc),
+                "Jupyter {}".format(vdesc),
                 "language: {} {}".format(lang, langver),
                 "",
                 ]

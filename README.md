@@ -1,5 +1,5 @@
 # nvim-ipy
-This is a IPython/Jupyter front-end for Neovim, partially based on [ivanov/vim-ipython](https://github.com/ivanov/vim-ipython), but refactored for nvim's plugin architechture and improved async event handling. IPython 3.x or Jupyter 4.x is required. It uses python3 per default; see below for notes on using python2. It has full support for non-python kernels.
+This is a Jupyter front-end for Neovim, partially based on [ivanov/vim-ipython](https://github.com/ivanov/vim-ipython), but refactored for nvim's plugin architechture and improved async event handling. Jupyter 4.x or later is required. It uses python3 per default; see below for notes on using python2. It has full support for non-python kernels.
 
 It doesn't have all features of `vim-ipython`, but it has better support for long-running commands that continously produce output, for instance this silly example:
 
@@ -9,7 +9,7 @@ It doesn't have all features of `vim-ipython`, but it has better support for lon
         print(i)
 
 ## Connecting/starting kernel
-`:IPython <args>` is interpreted just like the command line `ipython console <args>`, for instance:
+`:IPython <args>` is interpreted just like the command line `jupyter console <args>`, for instance:
 
 Action                  | command
 ----------------------- | -------
@@ -59,7 +59,7 @@ Option                    | default     | Action
 `g:ipy_truncate_input`    | 0           | when > 0, don't echo inputs larger than this number of lines
 `g:ipy_shortprompt`       | 0 (false)   | use shorter prompts (TODO: let user set arbitrary format)
 
-Note that the filetype syntax highlight could interact badly with the highlights sent from the kernel as ANSI sequences (in ipython tracebacks, for instance). Therefore both are not enabled by default. I might look into a better solution for this.
+Note that the filetype syntax highlight could interact badly with the highlights sent from the kernel as ANSI sequences (in IPython tracebacks, for instance). Therefore both are not enabled by default. I might look into a better solution for this.
 
 ## Exported vimscript functions
 Most useful is `IPyRun("string of code"[, silent])` which can be called to programmatically execute any code. The optional `silent` will avoid printing code and result to the console if nonzero. This is useful to bind common commands to a key. This will close all figures in matplotlib:
