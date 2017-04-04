@@ -143,7 +143,7 @@ class IPythonPlugin(object):
 
     def append_outbuf(self, data):
         #self.hl_handler.reset_sgr()
-        lineno = len(self.buf)-1
+        lineidx = len(self.buf)-1
         lastline = self.buf[-1]
 
         textdata = strip_ansi.sub('', data)
@@ -163,17 +163,17 @@ class IPythonPlugin(object):
                         if bold and color < 8:
                             color += 8 # be bright and shiny
                         name = "IPyFg{}".format(color)
-                        self.buf.add_highlight(name, lineno+i, colpos, colpos+l)
+                        self.buf.add_highlight(name, lineidx+i, colpos, colpos+l)
 
                     if bold:
                         name = "IPyBold"
-                        self.buf.add_highlight(name, lineno+i, colpos, colpos+l)
+                        self.buf.add_highlight(name, lineidx+i, colpos, colpos+l)
 
                     colpos += l
                 colpos = 0
 
         for w in self.vim.windows:
-            if w.buffer == self.buf:
+            if w.buffer == self.buf and w.cursor[0] == lineidx+1:
                 w.cursor = [len(self.buf), int(1e9)]
         return lineno
 
