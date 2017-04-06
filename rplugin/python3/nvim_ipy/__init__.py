@@ -173,7 +173,7 @@ class IPythonPlugin(object):
                 colpos = 0
 
         for w in self.vim.windows:
-            if w.buffer == self.buf and w.cursor[0] == lineidx+1:
+            if w != self.vim.current.window:
                 w.cursor = [len(self.buf), int(1e9)]
         return lineno
 
