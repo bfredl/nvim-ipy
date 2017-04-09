@@ -4,6 +4,7 @@ command! -nargs=* IJulia :call IPyConnect("--kernel", "julia-0.4")
 
 nnoremap <Plug>(IPy-Run) :call IPyRun(getline('.'))<cr>
 vnoremap <Plug>(IPy-Run) :<c-u>call IPyRun(<SID>get_visual_selection())<cr>
+noremap <Plug>(IPyRunCell) :call IPyRunCell()<cr>
 inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call IPyComplete()<cr>
 noremap <Plug>(IPy-WordObjInfo) :call IPyObjInfo(<SID>get_current_word(), 0)<cr>
 noremap <Plug>(IPy-Interrupt) :call IPyInterrupt()<cr>
@@ -45,6 +46,7 @@ let g:ipy_status = ""
 
 if g:nvim_ipy_perform_mappings
     map <silent> <F5>           <Plug>(IPy-Run)
+    map <leader>c <Plug>(IPy-Run-Cell)
     imap <silent> <C-F> <Plug>(IPy-Complete)
     map <silent> <F8> <Plug>(IPy-Interrupt)
     map <silent> <leader>? <Plug>(IPy-WordObjInfo)

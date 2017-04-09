@@ -273,6 +273,78 @@ class IPythonPlugin(object):
                 # TODO: if this is long, open separate window
                 self.append_outbuf(p['text'])
 
+    @neovim.function("IPyRunCell")
+    def ipy_run_cell(self, silent):
+        '''Runs all the code in between two cell separators
+        
+        taken from https://github.com/wmvanvliet/vim-ipython'''
+        cur_buf = self.vim.current.buffer
+        (cur_line, cur_col) = self.vim.current.window.cursor
+        cur_line -= 1
+        def is_cell_separator(line):
+            '''Determines whether a given line is a cell separator'''
+            cell_sep = ['##', '#%%%%', '# <codecell>']
+            for sep in cell_sep:
+                if line.strip().startswith(sep):
+                    return True
+            return False
+
+        # Search upwards for cell separator
+        upper_bound = cur_line
+        while upper_bound > 0 and not is_cell_separator(cur_buf[upper_bound]):
+            upper_bound -= 1
+
+        # Skip past the first cell separator if it exists
+        if is_cell_separator(cur_buf[upper_bound]):
+            upper_bound += 1
+
+        # Search downwards for cell separator
+        lower_bound = min(upper_bound+1, len(cur_buf)-1)
+
+        while lower_bound < len(cur_buf)-1 and not is_cell_separator(cur_buf[lower_bound]):
+            lower_bound += 1
+
+        # Move before the last cell separator if it exists
+        if is_cell_separator(cur_buf[lower_bound]):
+            lower_bound -= 1
+
+        # Make sure bounds are within buffer limits
+        upper_bound = max(0, min(upper_bound, len(cur_buf)-1))
+        lower_bound = max(0, min(lower_bound, len(cur_buf)-1))
+
+        # Make sure of proper ordering of bounds
+        lower_bound = max(upper_bound, lower_bound)
+
+        # Calculate minimum indentation level of entire cell
+        shiftwidth = self.vim.eval('&shiftwidth')
+        count = lambda x: int(self.vim.eval('indent(%d)/%s' % (x, shiftwidth)))
+
+        min_indent = count(upper_bound+1)
+        for i in range(upper_bound+1, lower_bound):
+            indent = count(i)
+            if indent < min_indent:
+                min_indent = indent
+
+        # Perform dedent
+        if min_indent > 0:
+            self.vim.command('%d,%d%s' % (upper_bound+1, lower_bound+1, '<'*min_indent))
+
+        # Execute cell
+        lines = "\n".join(cur_buf[upper_bound:lower_bound+1])
+        reply = self.waitfor(self.kc.execute(lines, silent=silent))
+        content = reply['content']
+        payload = content.get('payload', ())
+        for p in payload:
+            if p.get("source") == "page":
+                # TODO: if this is long, open separate window
+                self.append_outbuf(p['text'])
+        # prompt = "lines %d-%d "% (upper_bound+1, lower_bound+1)
+        # print_prompt(prompt, msg_id)
+
+        # Re-indent
+        if min_indent > 0:
+            self.vim.command("silent undo")
+
     @neovim.function("IPyComplete")
     def ipy_complete(self,args):
         line = self.vim.current.line
