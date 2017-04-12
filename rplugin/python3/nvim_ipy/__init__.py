@@ -175,7 +175,7 @@ class IPythonPlugin(object):
         for w in self.vim.windows:
             if w.buffer == self.buf and w != self.vim.current.window:
                 w.cursor = [len(self.buf), int(1e9)]
-        return lineno
+        return lineidx
 
     # TODO: should cleanly support reconnecting ( cleaning up previous connection)
     def connect(self, argv):
@@ -271,7 +271,10 @@ class IPythonPlugin(object):
         for p in payload:
             if p.get("source") == "page":
                 # TODO: if this is long, open separate window
-                self.append_outbuf(p['text'])
+                if 'text' in p:
+                    self.append_outbuf(p['text'])
+                else:
+                    self.append_outbuf(p['data']['text/plain'])
 
     @neovim.function("IPyComplete")
     def ipy_complete(self,args):
