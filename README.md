@@ -15,7 +15,7 @@ Action                  | command
 ----------------------- | -------
 Start new python kernel |  `:IPython` <br> `:IPython2` (for python2 kernel)
 Connect to existing kernel | `:IPython --existing`
-Start kernel in different language | `:IPython --kernel julia-0.4`
+Start kernel in different language | `:IPython --kernel julia-0.6`
 
 This plugin runs in the python3 host by default, but the kernel process don't need to be the same version of python as the plugin runs in. Kernelspec can be used to launch a python2 kernel, the same way as from the Jupyter console and notebook. Use `:IPython --kernel python2` or the `:IPython2` shortcut. You might need to execute
 
@@ -46,7 +46,7 @@ Yes, they exist mainly to quickly test this plugin. Add
 
 To your nvimrc and map to the generic bindings. For instance:
 
-    map <silent> <c-s>   <Plug>(IPy-Run)
+    map <silent> <c-s> <Plug>(IPy-Run)
 
 ## Options
 NB: the option system will soon be rewritten to allow changing options while the plugin is running,
@@ -68,4 +68,4 @@ Most useful is `IPyRun("string of code"[, silent])` which can be called to progr
 
 `IPyConnect(args...)` can likewise be used to connect with vimscript generated arguments.
 
-`IPyOmniFunc` can be used as `&completefunc`/`&omnifunc` for use with a completer framework. Note that unlike `<Plug><IPy-Complete)` this is synchronous and waits for the kernel, so if the kernel hangs this might hang nvim! For use with async completion like Deoplete it would be better to create a dedicated source.
+`IPyOmniFunc` can be used as `&completefunc`/`&omnifunc` for use with a completer framework. Note that unlike `<Plug>(IPy-Complete)` this is synchronous and waits for the kernel, so if the kernel hangs this might hang nvim! For use with async completion like Deoplete it would be better to create a dedicated source.
