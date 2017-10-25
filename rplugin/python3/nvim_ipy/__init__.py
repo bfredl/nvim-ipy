@@ -110,6 +110,7 @@ class IPythonPlugin(object):
         self.vim = vim
         self.buf = None
         self.has_connection = False
+        self.lua = None
 
         self.pending_shell_msgs = {}
 
@@ -144,7 +145,7 @@ class IPythonPlugin(object):
         self.hl_handler = AnsiCodeProcessor()
         self.hl_handler.bold_text_enabled = True
 
-    def append_outbuf(self, data):
+    def append_outbuf(self, data, extra_hls=()):
         #self.hl_handler.reset_sgr()
         lineidx = len(self.buf)-1
         lastline = self.buf[-1]
@@ -188,7 +189,7 @@ class IPythonPlugin(object):
         lines.append(chunks)
         chunks = []
 
-        #TODO: at least this part should be lua:
+        #TODO: this part should also be lua, to handle multibyte properly
         textlines = []
         hls = []
         for i,line in enumerate(lines):
@@ -199,11 +200,15 @@ class IPythonPlugin(object):
                 colstart = colend
                 colend = colstart + len(chunk[1])
                 for hl in chunk[0]:
-                    hls.append([hl,lineidx+i,colstart,colend])
+                    hls.append([hl,i,colstart,colend])
 
-        self.buf[-1:] = textlines
-        calls = [["nvim_buf_add_highlight", [self.buf, -1]+hl] for hl in hls]
-        self.vim.api.call_atomic(calls)
+        adj = len(lastline)
+        for hl in extra_hls:
+            if hl[1] == 0:
+                hl = list(hl[:2]) + [hl[2]+adj, hl[3]+(hl[3] >= 0)*adj]
+            hls.append(hl)
+
+        self.lua.update_outbuf(self.buf, lastline, textlines, hls)
 
         for w in self.vim.windows:
             if w.buffer == self.buf and w != self.vim.current.window:
@@ -217,6 +222,7 @@ class IPythonPlugin(object):
         if has_previous:
             # TODO: kill last kernel if we owend it?
             JupyterVimApp.clear_instance()
+
 
         self.ip_app = JupyterVimApp.instance()
         if has_previous:
@@ -292,6 +298,11 @@ class IPythonPlugin(object):
     @neovim.function("IPyConnect", sync=True)
     def ipy_connect(self, args):
         self.configure()
+        if self.lua is None:
+            self.vim.exec_lua("nvim_ipy = require('ipy')")
+            # NB: not a reference, just stores the "nvim_ipy" global name
+            self.lua = self.vim.lua.nvim_ipy
+
         # create buffer synchronously, as there is slight
         # racyness in seeing the correct current_buffer otherwise
         self.create_outbuf()
@@ -365,16 +376,12 @@ class IPythonPlugin(object):
 
         c = reply['content']
         if c["status"] == "error":
-            l = self.append_outbuf("\nerror when inspecting {}: {}\n".format(word, c.get("ename", "")))
-            if self.do_highlight:
-                self.buf.add_highlight("Error", l+1, 0, -1)
+            l = self.append_outbuf("\nerror when inspecting {}: {}\n".format(word, c.get("ename", "")), [("Error", 1, 0, -1)])
             if "traceback" in c:
                 self.append_outbuf('\n'.join(c['traceback'])+"\n")
 
         elif not c.get('found'):
-            l = self.append_outbuf("\nnot found: {}\n".format(word))
-            if self.do_highlight:
-                self.buf.add_highlight("WarningMsg", l+1, 0, -1)
+            l = self.append_outbuf("\nnot found: {}\n".format(word), [("WarningMsg", 1, 0, -1)])
         else:
             self.append_outbuf("\n"+c['data']['text/plain']+"\n")
 
@@ -403,14 +410,14 @@ class IPythonPlugin(object):
                 if self.max_in and len(code) > self.max_in:
                     code = code[:self.max_in] + ['.....']
                 sep = '\n'+' '*len(prompt)
-                line = self.append_outbuf(u'\n{}{}\n'.format(prompt, sep.join(code)))
-                self.buf.add_highlight('IPyIn', line+1, 0, len(prompt))
+                hl = ('IPyIn', 1, 0, len(prompt))
+                self.append_outbuf(u'\n{}{}\n'.format(prompt, sep.join(code)), [hl])
             elif t in ['pyout', 'execute_result']:
                 no = c['execution_count']
                 res = c['data']['text/plain']
                 prompt = self.prompt_out.format(no)
-                line = self.append_outbuf((u'{}{}\n').format(prompt, res.rstrip()))
-                self.buf.add_highlight('IPyOut', line, 0, len(prompt))
+                hl = ('IPyOut', 0, 0, len(prompt))
+                self.append_outbuf((u'{}{}\n').format(prompt, res.rstrip()), [hl])
             elif t in ['pyerr', 'error']:
                 #TODO: this should be made language specific
                 # as the amt of info in 'traceback' differs
@@ -435,6 +442,8 @@ class IPythonPlugin(object):
             debug('unexpected shell msg: %r', m)
             return
         if isinstance(handler, greenlet.greenlet):
+            # FIXME: seems errors from a restored async handler
+            # are silently dropped
             handler.parent = greenlet.getcurrent()
             handler.switch(m)
         elif handler is not None:
