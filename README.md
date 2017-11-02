@@ -34,6 +34,7 @@ When kernel is running, following bindings can be used:
 Generic                   | default     | Action
 ------------------------- | ----------  | ------
 `<Plug>(IPy-Run)`         | `<F5>`      | Excecute current line or visual selection
+`<Plug>(IPy-RunCell)`     |             | Excecute current cell (see below)
 `<Plug>(IPy-Complete)`    | `<C-F>`     | (insert mode) Kernel code completion
 `<Plug>(IPy-WordObjInfo)` | `<leader>?` | Inspect variable under the cursor
 `<Plug>(IPy-Interrupt)`   | `<F8>`      | Send interrupt to kernel
@@ -48,6 +49,21 @@ To your nvimrc and map to the generic bindings. For instance:
 
     map <silent> <c-s> <Plug>(IPy-Run)
 
+## Cells
+As a convenience, the plugin includes a definition of code cells (running only for now, later I might make them text objects).
+The cell is defined by setting `g:ipy_celldef` a list of two of rexexes that should match the beginning and end of a cell respecively. If a string is supplied, it will be used for both. The default is equivalent to either of
+
+    let g:ipy_celldef = ['^##', '^##']
+    let g:ipy_celldef = '^##'
+
+To enable to define cells in a filetype, `b:ipy_celldef` will override the global value. As an example, add this to vimrc to support R notebooks (.rmd):
+
+    au FileType rmd let b:ipy_celldef = ['^```{r}$', '^```$']
+
+You also need to map some key to `IPy-RunCell`:
+
+    map <silent> <leader>c <Plug>(IPy-RunCell)
+
 ## Options
 NB: the option system will soon be rewritten to allow changing options while the plugin is running,
 but for now you can set:
@@ -58,6 +74,7 @@ Option                    | default     | Action
 `g:ipy_highlight`         | 1 (true)    | add highlights for ANSI sequences in the output
 `g:ipy_truncate_input`    | 0           | when > 0, don't echo inputs larger than this number of lines
 `g:ipy_shortprompt`       | 0 (false)   | use shorter prompts (TODO: let user set arbitrary format)
+`g:ipy_celldef`           | '^##'       | definition of a code cell, see above
 
 Note that the filetype syntax highlight could interact badly with the highlights sent from the kernel as ANSI sequences (in IPython tracebacks, for instance). Therefore both are not enabled by default. I might look into a better solution for this.
 
@@ -68,4 +85,4 @@ Most useful is `IPyRun("string of code"[, silent])` which can be called to progr
 
 `IPyConnect(args...)` can likewise be used to connect with vimscript generated arguments.
 
-`IPyOmniFunc` can be used as `&completefunc`/`&omnifunc` for use with a completer framework. Note that unlike `<Plug>(IPy-Complete)` this is synchronous and waits for the kernel, so if the kernel hangs this might hang nvim! For use with async completion like Deoplete it would be better to create a dedicated source.
+`IPyOmniFunc` can be used as `&completefunc`/`&omnifunc` for use with a completer framework. Note that unlike `<Plug>(IPy-Complete)` this is synchronous and waits for the kernel, so if the kernel hangs this will hang nvim! For use with async completion like Deoplete it would be better to create a dedicated source.

@@ -4,6 +4,7 @@ command! -nargs=* IJulia :call IPyConnect("--kernel", "julia-0.4")
 
 nnoremap <Plug>(IPy-Run) :call IPyRun(getline('.'))<cr>
 vnoremap <Plug>(IPy-Run) :<c-u>call IPyRun(<SID>get_visual_selection())<cr>
+nnoremap <Plug>(IPy-RunCell) :<c-u>call IPyRunCell()<cr>
 inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call IPyComplete()<cr>
 noremap <Plug>(IPy-WordObjInfo) :call IPyObjInfo(<SID>get_current_word(), 0)<cr>
 noremap <Plug>(IPy-Interrupt) :call IPyInterrupt()<cr>
@@ -34,8 +35,70 @@ function! s:get_visual_selection()
     let lines = getline(lnum1, lnum2)
     let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
     let lines[0] = lines[0][col1 - 1:]
+    let lines = getline(lnum1, lnum2)
     return join(lines, "\n")
 endfunction
+
+function! s:get_scoped(key,default)
+    if has_key(b:, a:key)
+        return b:[a:key]
+    else
+        return get(g:,a:key,a:default)
+    end
+endfunction
+
+function! s:saveCur()
+    " from matchit
+    let restore_cursor = virtcol(".") . "|"
+    normal! g0
+    let restore_cursor = line(".") . "G" .  virtcol(".") . "|zs" . restore_cursor
+    normal! H
+    let restore_cursor = "normal!" . line(".") . "Gzt" . restore_cursor
+    execute restore_cursor
+    return restore_cursor
+endfunction
+
+function! s:select(mode, start, end)
+    execute "normal! ".a:mode
+    call cursor(a:start[0], a:start[1])
+    normal! o
+    call cursor(a:end[0], a:end[1])
+    if &selection ==# 'exclusive'
+        normal! l
+    endif
+endfunction
+
+
+" TODO: make me a reusable text object
+function! IPyRunCell()
+    let def = s:get_scoped("ipy_celldef", "^##")
+    if type(def) == v:t_list
+        let [start, end] = def
+    else
+        let start = def
+        let end = def
+    endif
+    let curline = line('.')
+    let lnum2 = search(end, 'nW')
+    if lnum2 == 0
+        return 0
+    endif
+    let reset =  s:saveCur()
+    call cursor(lnum2,1)
+    let lnum1 = search(start, 'bnW')
+    execute reset
+    if lnum1 == 0
+        return 0
+    endif
+    let lines = getline(lnum1+1, lnum2-1)
+    echomsg "".lnum1.":".lnum2
+    while len(lines) > 0 && match(lines[0], '^\s*$') > -1
+        let lines = lines[1:]
+    endwhile
+    call IPyRun(join(lines, "\n"))
+    return 1
+endfunction
+
 
 if !exists('g:nvim_ipy_perform_mappings')
     let g:nvim_ipy_perform_mappings = 1
