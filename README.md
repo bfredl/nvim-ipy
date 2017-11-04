@@ -27,6 +27,8 @@ If you only have the python2 host installed, you could do
 `cd rplugin; ln -s python3 python`
 to run this plugin in the python2 host instead.
 
+**New:** Invoking `:IPython` multiple times in the same nvim session should now work properly!
+
 ## Keybindings
 
 When kernel is running, following bindings can be used:
