@@ -32,7 +32,8 @@ if 'NVIM_IPY_DEBUG_FILE' in os.environ:
 class RedirectingKernelManager(KernelManager):
     def _launch_kernel(self, cmd, **b):
         # stdout is used to communicate with nvim, redirect it somewhere else
-        self._null = open("/dev/null","wb",0)
+        nullfile = "/dev/null" if os.name != 'nt' else 'NUL'
+        self._null = open(nullfile,"wb",0)
         b['stdout'] = self._null.fileno()
         b['stderr'] = self._null.fileno()
         return super(RedirectingKernelManager, self)._launch_kernel(cmd, **b)
