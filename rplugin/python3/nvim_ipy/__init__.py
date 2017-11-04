@@ -45,7 +45,7 @@ class JupyterVimApp(JupyterApp, JupyterConsoleApp):
     aliases = JupyterConsoleApp.aliases #this the way?
     flags = JupyterConsoleApp.flags
     def init_kernel_client(self):
-        #TODO: cleanup this (by subclassing kernel_clint or something)
+        #TODO: cleanup this (by subclassing kernel_clinet or something)
         if self.kernel_manager is not None:
             self.kernel_client = self.kernel_manager.client()
         else:
@@ -178,11 +178,18 @@ class IPythonPlugin(object):
                 w.cursor = [len(self.buf), int(1e9)]
         return lineidx
 
-    # TODO: should cleanly support reconnecting ( cleaning up previous connection)
     def connect(self, argv):
         vim = self.vim
 
+        has_previous = self.has_connection
+        if has_previous:
+            # TODO: kill last kernel if we owend it?
+            JupyterVimApp.clear_instance()
+
         self.ip_app = JupyterVimApp.instance()
+        if has_previous:
+            self.ip_app.connection_file = self.ip_app._new_connection_file()
+
         # messages will be recieved in Jupyter's event loop threads
         # so use the async self
         self.ip_app.initialize(Async(self), argv)
@@ -196,6 +203,7 @@ class IPythonPlugin(object):
         lang = c['language_info']['name']
         langver = c['language_info']['version']
 
+        banner = [ "nvim-ipy: Jupyter shell for Neovim"] if not has_previous else []
         try:
             ipy_version = c['ipython_version']
         except KeyError:
@@ -203,31 +211,36 @@ class IPythonPlugin(object):
         vdesc = '.'.join(str(i) for i in ipy_version[:3])
         if len(ipy_version) >= 4 and ipy_version[3] != '':
             vdesc += '-' + ipy_version[3]
-        banner = [
-                "nvim-ipy: Jupyter shell for Neovim",
+        banner.extend([
                 "Jupyter {}".format(vdesc),
                 "language: {} {}".format(lang, langver),
                 "",
-                ]
-        self.buf[:0] = banner
-        for i in range(len(banner)):
-            self.buf.add_highlight('Comment', i)
+                ])
 
-        # TODO: we might want to wrap this in a sync call
-        # to avoid racyness with user interaction
-        w0 = vim.current.window
-        if vim.current.buffer != self.buf:
-            for w in vim.windows:
-                if w.buffer == self.buf:
-                    vim.current.window = w
-                    break
-            else:
-                return #reopen window?
+        if has_previous:
+            pos = len(self.buf)
+            self.buf.append(banner)
+        else:
+            pos = 0
+            self.buf[:0] = banner
+        for i in range(len(banner)):
+            self.buf.add_highlight('Comment', pos+i)
 
         if self.do_filetype:
+            # TODO: we might want to wrap this in a sync call
+            # to avoid racyness with user interaction
+            w0 = vim.current.window
+            if vim.current.buffer != self.buf:
+                for w in vim.windows:
+                    if w.buffer == self.buf:
+                        vim.current.window = w
+                        break
+                else:
+                    return #reopen window?
+
             vim.command("set ft={}".format(lang))
 
-        vim.current.window = w0
+            vim.current.window = w0
 
     def disp_status(self, status):
         self.vim.vars['ipy_status'] = status
