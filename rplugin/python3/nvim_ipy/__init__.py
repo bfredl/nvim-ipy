@@ -7,6 +7,8 @@ import re
 import neovim
 from neovim.api import NvimError
 
+from itertools import chain
+
 from jupyter_client import KernelManager
 from jupyter_client.threaded import ThreadedKernelClient
 from jupyter_core.application import JupyterApp
@@ -16,7 +18,7 @@ from jupyter_core import version_info
 import greenlet
 from traceback import format_exc
 
-from .ansi_code_processor import AnsiCodeProcessor
+from .ansi_code_processor import AnsiCodeProcessor, NewLineAction, CarriageReturnAction, BackSpaceAction
 
 # from http://serverfault.com/questions/71285/in-centos-4-4-how-can-i-strip-escape-sequences-from-a-text-file
 strip_ansi = re.compile('\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]')
@@ -147,15 +149,29 @@ class IPythonPlugin(object):
         lineidx = len(self.buf)-1
         lastline = self.buf[-1]
 
-        textdata = strip_ansi.sub('', data)
-        txt = lastline + textdata
-        self.buf[-1:] = txt.split("\n") # not splitlines
+        lines = []
+        chunks = []
 
-        if self.do_highlight:
-            colpos = len(lastline)
-            for i,line in enumerate(data.split("\n")):
-                for chunk in self.hl_handler.split_string(line):
-                    l = len(chunk)
+        #self.hl_handler.actions = []
+
+        for chunk in chain([lastline], self.hl_handler.split_string(data)):
+            if self.hl_handler.actions:
+                assert len(self.hl_handler.actions) == 1
+                a = self.hl_handler.actions[0]
+                if isinstance(a, NewLineAction):
+                    lines.append(chunks)
+                    chunks = []
+                elif isinstance(a, CarriageReturnAction):
+                    chunks = []
+                elif isinstance(a, BackSpaceAction):
+                    if chunks:
+                        if len(chunks[-1]) > 1:
+                            chunks[-1][1] = chunks[-1][1][:-1]
+                        else:
+                            chunks.pop()
+            elif len(chunk) > 0:
+                groups = []
+                if self.do_highlight:
                     bold = self.hl_handler.bold or self.hl_handler.intensity > 0
                     color = self.hl_handler.foreground_color
                     if color and color > 16: color = None
@@ -163,15 +179,31 @@ class IPythonPlugin(object):
                     if color is not None:
                         if bold and color < 8:
                             color += 8 # be bright and shiny
-                        name = "IPyFg{}".format(color)
-                        self.buf.add_highlight(name, lineidx+i, colpos, colpos+l)
+                        groups.append("IPyFg{}".format(color))
 
                     if bold:
-                        name = "IPyBold"
-                        self.buf.add_highlight(name, lineidx+i, colpos, colpos+l)
+                        groups.append("IPyBold")
+                chunks.append([groups, chunk])
 
-                    colpos += l
-                colpos = 0
+        lines.append(chunks)
+        chunks = []
+
+        #TODO: at least this part should be lua:
+        textlines = []
+        hls = []
+        for i,line in enumerate(lines):
+            text = ''.join(c[1] for c in line)
+            textlines.append(text)
+            colend = 0
+            for chunk in line:
+                colstart = colend
+                colend = colstart + len(chunk[1])
+                for hl in chunk[0]:
+                    hls.append([hl,lineidx+i,colstart,colend])
+
+        self.buf[-1:] = textlines
+        calls = [["nvim_buf_add_highlight", [self.buf, -1]+hl] for hl in hls]
+        self.vim.api.call_atomic(calls)
 
         for w in self.vim.windows:
             if w.buffer == self.buf and w != self.vim.current.window:
@@ -289,6 +321,10 @@ class IPythonPlugin(object):
                     self.append_outbuf(p['text'])
                 else:
                     self.append_outbuf(p['data']['text/plain'])
+
+    @neovim.function("IPyDbgWrite", sync=True)
+    def ipy_write(self, args):
+        self.append_outbuf(args[0])
 
     @neovim.function("IPyComplete")
     def ipy_complete(self,args):

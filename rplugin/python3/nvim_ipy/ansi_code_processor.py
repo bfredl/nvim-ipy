@@ -140,10 +140,12 @@ class AnsiCodeProcessor(object):
         substring = SPECIAL_PATTERN.sub(self._replace_special, raw)
         if substring or self.actions:
             yield substring
+            self.actions = []
 
         if last_char is not None:
             self.actions.append(NewLineAction('newline'))
             yield last_char
+            self.actions = []
 
     def set_csi_code(self, command, params=[]):
         """ Set attributes based on CSI (Control Sequence Introducer) code.
