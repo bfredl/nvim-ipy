@@ -407,9 +407,14 @@ class IPythonPlugin(object):
                 self.buf.add_highlight('IPyIn', line+1, 0, len(prompt))
             elif t in ['pyout', 'execute_result']:
                 no = c['execution_count']
-                res = c['data']['text/plain']
+                res = c['data'].get('text/plain')
+                if res is None:
+                    # TODO: still print a marker for unprintable output?
+                    return
                 prompt = self.prompt_out.format(no)
-                line = self.append_outbuf((u'{}{}\n').format(prompt, res.rstrip()))
+                if '\n' in res and not prompt.endswith("\n"):
+                    prompt = prompt.rstrip() + "\n"
+                line = self.append_outbuf((u'{}{}\n').format(prompt, res))
                 self.buf.add_highlight('IPyOut', line, 0, len(prompt))
             elif t in ['pyerr', 'error']:
                 #TODO: this should be made language specific
