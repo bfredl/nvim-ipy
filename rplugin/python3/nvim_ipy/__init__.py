@@ -40,6 +40,15 @@ class RedirectingKernelManager(KernelManager):
         b['stderr'] = self._null.fileno()
         return super(RedirectingKernelManager, self)._launch_kernel(cmd, **b)
 
+# because Dependency Injection
+def fakefactory(factory, handler):
+    class theclass(factory):
+        def __init__(self, *arg, **kwarg):
+            super(theclass,self).__init__(*arg, *kwarg)
+            self.call_handlers = handler
+    return theclass
+
+
 class JupyterVimApp(JupyterApp, JupyterConsoleApp):
     # don't use blocking client; we override call_handlers below
     kernel_client_class = ThreadedKernelClient
@@ -62,10 +71,10 @@ class JupyterVimApp(JupyterApp, JupyterConsoleApp):
                                 connection_file=self.connection_file,
                                 parent=self,
             )
-        self.kernel_client.shell_channel.call_handlers = self.target.on_shell_msg
-        self.kernel_client.iopub_channel.call_handlers = self.target.on_iopub_msg
-        self.kernel_client.stdin_channel.call_handlers = self.target.on_stdin_msg
-        self.kernel_client.hb_channel.call_handlers = self.target.on_hb_msg
+        self.kernel_client.shell_channel_class = fakefactory(self.kernel_client.shell_channel_class, self.target.on_shell_msg)
+        self.kernel_client.iopub_channel_class = fakefactory(self.kernel_client.iopub_channel_class, self.target.on_iopub_msg)
+        self.kernel_client.stdin_channel_class = fakefactory(self.kernel_client.stdin_channel_class, self.target.on_stdin_msg)
+        self.kernel_client.hb_channel_class = fakefactory(self.kernel_client.hb_channel_class, self.target.on_hb_msg)
         self.kernel_client.start_channels()
 
     def initialize(self, target, argv):
