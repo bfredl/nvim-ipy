@@ -43,11 +43,8 @@ class RedirectingKernelManager(KernelManager):
 # because Dependency Injection
 def fakefactory(factory, handler):
     class theclass(factory):
-        def __init__(self, *arg, **kwarg):
-            super(theclass,self).__init__(*arg, *kwarg)
-            self.call_handlers = handler
+        call_handlers = handler
     return theclass
-
 
 class JupyterVimApp(JupyterApp, JupyterConsoleApp):
     # don't use blocking client; we override call_handlers below
