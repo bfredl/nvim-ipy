@@ -113,10 +113,6 @@ class IPythonPlugin(object):
         # make sure one message is handled at a time
         self.on_iopub_msg = ExclusiveHandler(self._on_iopub_msg)
 
-    # TODO: add to python-client
-    def lua(self, code, *args):
-        return self.vim.api.execute_lua(code, args)
-
     def configure(self):
         #FIXME: rethink the entire configuration interface thing
         # we should use dict notifictaions for runtime settings
@@ -185,7 +181,8 @@ class IPythonPlugin(object):
     def connect(self, argv):
         vim = self.vim
 
-        self.lua("_ipy = require('ipy')")
+        self.vim.exec_lua("_ipy = require('ipy')")
+        self.lua = self.vim.lua._ipy
 
         self.ip_app = JupyterVimApp.instance()
         # messages will be recieved in Jupyter's event loop threads
@@ -281,7 +278,7 @@ class IPythonPlugin(object):
                     self.append_outbuf(p['text'])
                 else:
                     self.append_outbuf(p['data']['text/plain'])
-        self.lua("return _ipy.append_outbuf(...)", "smurf")
+        self.lua.append_outbuf("smurf")
 
     @neovim.function("IPyComplete")
     def ipy_complete(self,args):
