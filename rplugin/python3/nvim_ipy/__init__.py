@@ -115,6 +115,7 @@ class IPythonPlugin(object):
     def __init__(self, vim):
         self.vim = vim
         self.buf = None
+        self.km = None
         self.has_connection = False
 
         self.pending_shell_msgs = {}
@@ -296,18 +297,26 @@ class IPythonPlugin(object):
         self.handle(msg_id, None)
 
     @neovim.function("IPyConnect", sync=True)
-    def ipy_connect(self, args):
+    def ipy_connect(self, args=(), async=True):
         self.configure()
         # create buffer synchronously, as there is slight
         # racyness in seeing the correct current_buffer otherwise
         self.create_outbuf()
         # 'connect' waits for kernelinfo, and so must be async
-        Async(self).connect(args)
+        # unless requested otherwise
+        if async:
+            Async(self).connect(args)
+        else:
+            self.connect(args)
 
     @neovim.function("IPyRun")
     def ipy_run(self, args):
         code = args[0]
         silent = bool(args[1]) if len(args) > 1 else False
+
+        if self.km is None:
+            self.ipy_connect(async=False)
+
         if self.km and not self.km.is_alive():
             choice = int(self.vim.funcs.confirm('Kernel died. Restart?', '&Yes\n&No'))
             if choice == 1:
