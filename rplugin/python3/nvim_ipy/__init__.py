@@ -137,7 +137,7 @@ class IPythonPlugin(object):
             self.prompt_in = u"In[{}]: "
             self.prompt_out = u"Out[{}]: "
 
-    def create_outbuf(self):
+    def create_outbuf(self, window=True):
         vim = self.vim
         if self.buf is not None:
             return
@@ -147,6 +147,10 @@ class IPythonPlugin(object):
         buf.options["swapfile"] = False
         buf.options["buftype"] = "nofile"
         buf.name = "[jupyter]"
+
+        if not window:
+            vim.command(":q")
+
         vim.current.window = w0
         self.buf = buf
         self.hl_handler = AnsiCodeProcessor()
@@ -300,9 +304,15 @@ class IPythonPlugin(object):
     @neovim.function("IPyConnect", sync=True)
     def ipy_connect(self, args=(), async=True):
         self.configure()
+
+        window = True
+        if '--no-window' in args:
+            args.remove('--no-window')
+            window = False
+
         # create buffer synchronously, as there is slight
         # racyness in seeing the correct current_buffer otherwise
-        self.create_outbuf()
+        self.create_outbuf(window)
         # 'connect' waits for kernelinfo, and so must be async
         # unless requested otherwise
         if async:
