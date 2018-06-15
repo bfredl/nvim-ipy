@@ -72,6 +72,9 @@ function! s:select(mode, start, end)
     endif
 endfunction
 
+if !exists('g:nvim_ipy_cell_eof')
+  let g:nvim_ipy_cell_eof = 0
+endif
 
 " TODO: make me a reusable text object
 function! IPyRunCell()
@@ -85,7 +88,11 @@ function! IPyRunCell()
     let curline = line('.')
     let lnum2 = search(end, 'nW')
     if lnum2 == 0
-        return 0
+        if g:nvim_ipy_cell_eof
+          let lnum2 = line('$')
+        else
+          return 0
+        endif
     endif
     let reset =  s:saveCur()
     call cursor(lnum2,1)
