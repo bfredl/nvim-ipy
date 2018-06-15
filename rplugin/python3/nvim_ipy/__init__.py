@@ -298,6 +298,7 @@ class IPythonPlugin(object):
     @neovim.function("IPyConnect", sync=True)
     def ipy_connect(self, args):
         self.configure()
+        self.vim.command(":doautocmd <nomodeline> User ipy-connect")
         # create buffer synchronously, as there is slight
         # racyness in seeing the correct current_buffer otherwise
         self.create_outbuf()
