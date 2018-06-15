@@ -129,6 +129,7 @@ class IPythonPlugin(object):
         self.do_filetype = self.vim.vars.get("ipy_set_ft", 0)
         self.do_highlight = self.vim.vars.get("ipy_highlight", 1)
         self.max_in = self.vim.vars.get("ipy_truncate_input", 0)
+        self.append = self.vim.vars.get("nvim_ipy_append", "")
         if self.vim.vars.get("ipy_shortprompt", False):
             self.prompt_in = u"{}: "
             self.prompt_out = u"{}: "
@@ -326,7 +327,7 @@ class IPythonPlugin(object):
                     self.km.start_kernel(**self.km._launch_args)
             return
 
-        reply = self.waitfor(self.kc.execute(code,silent=silent))
+        reply = self.waitfor(self.kc.execute(code + self.append,silent=silent))
         content = reply['content']
         payload = content.get('payload',())
         for p in payload:
