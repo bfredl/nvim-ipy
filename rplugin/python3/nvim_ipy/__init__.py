@@ -115,6 +115,7 @@ class IPythonPlugin(object):
     def __init__(self, vim):
         self.vim = vim
         self.buf = None
+        self.km = None
         self.has_connection = False
 
         self.pending_shell_msgs = {}
@@ -128,6 +129,7 @@ class IPythonPlugin(object):
         self.do_filetype = self.vim.vars.get("ipy_set_ft", 0)
         self.do_highlight = self.vim.vars.get("ipy_highlight", 1)
         self.max_in = self.vim.vars.get("ipy_truncate_input", 0)
+        self.append = self.vim.vars.get("nvim_ipy_append", "")
         if self.vim.vars.get("ipy_shortprompt", False):
             self.prompt_in = u"{}: "
             self.prompt_out = u"{}: "
@@ -135,7 +137,7 @@ class IPythonPlugin(object):
             self.prompt_in = u"In[{}]: "
             self.prompt_out = u"Out[{}]: "
 
-    def create_outbuf(self):
+    def create_outbuf(self, window=True):
         vim = self.vim
         if self.buf is not None:
             return
@@ -145,6 +147,10 @@ class IPythonPlugin(object):
         buf.options["swapfile"] = False
         buf.options["buftype"] = "nofile"
         buf.name = "[jupyter]"
+
+        if not window:
+            vim.command(":q")
+
         vim.current.window = w0
         self.buf = buf
         self.hl_handler = AnsiCodeProcessor()
@@ -296,18 +302,32 @@ class IPythonPlugin(object):
         self.handle(msg_id, None)
 
     @neovim.function("IPyConnect", sync=True)
-    def ipy_connect(self, args):
+    def ipy_connect(self, args=(), async=True):
         self.configure()
+
+        window = True
+        if '--no-window' in args:
+            args.remove('--no-window')
+            window = False
+
         # create buffer synchronously, as there is slight
         # racyness in seeing the correct current_buffer otherwise
-        self.create_outbuf()
+        self.create_outbuf(window)
         # 'connect' waits for kernelinfo, and so must be async
-        Async(self).connect(args)
+        # unless requested otherwise
+        if async:
+            Async(self).connect(args)
+        else:
+            self.connect(args)
 
     @neovim.function("IPyRun")
     def ipy_run(self, args):
         code = args[0]
         silent = bool(args[1]) if len(args) > 1 else False
+
+        if self.km is None:
+            self.ipy_connect(async=False)
+
         if self.km and not self.km.is_alive():
             choice = int(self.vim.funcs.confirm('Kernel died. Restart?', '&Yes\n&No'))
             if choice == 1:
@@ -317,7 +337,7 @@ class IPythonPlugin(object):
                     self.km.start_kernel(**self.km._launch_args)
             return
 
-        reply = self.waitfor(self.kc.execute(code,silent=silent))
+        reply = self.waitfor(self.kc.execute(code + self.append,silent=silent))
         content = reply['content']
         payload = content.get('payload',())
         for p in payload:

@@ -32,6 +32,11 @@ endfunction
 function! s:get_visual_selection()
     let [lnum1, col1] = getpos("'<")[1:2]
     let [lnum2, col2] = getpos("'>")[1:2]
+
+    if lnum1 > lnum2
+      let [lnum1, col1, lnum2, col2] = [lnum2, col2, lnum1, col1]
+    endif
+
     let lines = getline(lnum1, lnum2)
     let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
     let lines[0] = lines[0][col1 - 1:]
@@ -67,6 +72,9 @@ function! s:select(mode, start, end)
     endif
 endfunction
 
+if !exists('g:nvim_ipy_cell_eof')
+  let g:nvim_ipy_cell_eof = 0
+endif
 
 " TODO: make me a reusable text object
 function! IPyRunCell()
@@ -80,7 +88,11 @@ function! IPyRunCell()
     let curline = line('.')
     let lnum2 = search(end, 'nW')
     if lnum2 == 0
-        return 0
+        if g:nvim_ipy_cell_eof
+          let lnum2 = line('$')
+        else
+          return 0
+        endif
     endif
     let reset =  s:saveCur()
     call cursor(lnum2,1)
