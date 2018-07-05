@@ -77,21 +77,27 @@ endfunction
 function! IPyRunCell()
     let def = s:get_scoped("ipy_celldef", "^##")
     if type(def) == v:t_list
+        let implicit = v:false
         let [start, end] = def
     else
+        let implicit = v:true
         let start = def
         let end = def
     endif
     let curline = line('.')
     let lnum2 = search(end, 'nW')
     if lnum2 == 0
-        return 0
+        if implicit
+            let lnum2 = line('$')+1
+        else
+            return 0
+        end
     endif
     let reset =  s:saveCur()
     call cursor(lnum2,1)
     let lnum1 = search(start, 'bnW')
     execute reset
-    if lnum1 == 0
+    if lnum1 == 0 && !implicit
         return 0
     endif
     let lines = getline(lnum1+1, lnum2-1)
