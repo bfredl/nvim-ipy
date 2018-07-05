@@ -2,7 +2,7 @@ command! -nargs=* IPython :call IPyConnect(<f-args>)
 command! -nargs=* IPython2 :call IPyConnect("--kernel", "python2")
 command! -nargs=* IJulia :call IPyConnect("--kernel", "julia-0.4")
 
-nnoremap <Plug>(IPy-Run) :call IPyRun(getline('.'))<cr>
+nnoremap <Plug>(IPy-Run) :call IPyRun(getline('.')."\n")<cr>
 vnoremap <Plug>(IPy-Run) :<c-u>call IPyRun(<SID>get_visual_selection())<cr>
 nnoremap <Plug>(IPy-RunCell) :<c-u>call IPyRunCell()<cr>
 inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call IPyComplete()<cr>
@@ -40,7 +40,7 @@ function! s:get_visual_selection()
     let lines = getline(lnum1, lnum2)
     let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
     let lines[0] = lines[0][col1 - 1:]
-    return join(lines, "\n")
+    return join(lines, "\n")."\n"
 endfunction
 
 function! s:get_scoped(key,default)
