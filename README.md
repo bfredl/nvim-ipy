@@ -27,7 +27,9 @@ If you only have the python2 host installed, you could do
 `cd rplugin; ln -s python3 python`
 to run this plugin in the python2 host instead.
 
-**New:** Invoking `:IPython` multiple times in the same nvim session should now work properly!
+`:IPython` can be invoked multiple times in the same nvim session. The old kernel connection is then closed and forgotten.
+
+**New:** `--no-window` can be passed an argument to `:IPython` to hide the output window.
 
 ## Keybindings
 
@@ -53,9 +55,8 @@ To your nvimrc and map to the generic bindings. For instance:
 
 ## Cells
 As a convenience, the plugin includes a definition of code cells (running only for now, later I might make them text objects).
-The cell is defined by setting `g:ipy_celldef` a list of two of rexexes that should match the beginning and end of a cell respecively. If a string is supplied, it will be used for both. The default is equivalent to either of
+The cell is defined by setting `g:ipy_celldef` a list of two of rexexes that should match the beginning and end of a cell respecively. If a string is supplied, it will be used for both, and in addition the beginning and the end of the buffer will implicitly work as cells. The default is equivalent to:
 
-    let g:ipy_celldef = ['^##', '^##']
     let g:ipy_celldef = '^##'
 
 To enable to define cells in a filetype, `b:ipy_celldef` will override the global value. As an example, add this to vimrc to support R notebooks (.rmd):
