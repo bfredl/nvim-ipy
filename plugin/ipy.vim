@@ -5,6 +5,7 @@ command! -nargs=* IJulia :call IPyConnect("--kernel", "julia-0.4")
 nnoremap <Plug>(IPy-Run) :call IPyRun(getline('.')."\n")<cr>
 vnoremap <Plug>(IPy-Run) :<c-u>call IPyRun(<SID>get_visual_selection())<cr>
 nnoremap <Plug>(IPy-RunCell) :<c-u>call IPyRunCell()<cr>
+nnoremap <Plug>(IPy-RunAll) :call IPyRun(join(getline(1, '$'), "\n"))<cr>
 inoremap <Plug>(IPy-Complete) <c-o>:<c-u>call IPyComplete()<cr>
 noremap <Plug>(IPy-WordObjInfo) :call IPyObjInfo(<SID>get_current_word(), 0)<cr>
 noremap <Plug>(IPy-Interrupt) :call IPyInterrupt()<cr>
