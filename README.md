@@ -39,6 +39,7 @@ Generic                   | default     | Action
 ------------------------- | ----------  | ------
 `<Plug>(IPy-Run)`         | `<F5>`      | Excecute current line or visual selection
 `<Plug>(IPy-RunCell)`     |             | Excecute current cell (see below)
+`<Plug>(IPy-RunAll)`      |             | Excecute all lines in buffer
 `<Plug>(IPy-Complete)`    | `<C-F>`     | (insert mode) Kernel code completion
 `<Plug>(IPy-WordObjInfo)` | `<leader>?` | Inspect variable under the cursor
 `<Plug>(IPy-Interrupt)`   | `<F8>`      | Send interrupt to kernel
