@@ -2,6 +2,7 @@ command! -nargs=* IPython :call IPyConnect(<f-args>)
 command! -nargs=* IPython2 :call IPyConnect("--kernel", "python2")
 command! -nargs=* IJulia :call IPyConnect("--kernel", "julia-0.4")
 
+nnoremap <Plug>(IPy-Word) <Cmd>call IPyRun(expand("<cword>"))<cr>
 nnoremap <Plug>(IPy-Run) <Cmd>call IPyRun(getline('.')."\n")<cr>
 vnoremap <Plug>(IPy-Run) :<c-u>call IPyRun(<SID>get_visual_selection())<cr>
 nnoremap <Plug>(IPy-RunCell) <Cmd>call IPyRunCell()<cr>
