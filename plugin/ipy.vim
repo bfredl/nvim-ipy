@@ -4,9 +4,10 @@ command! -nargs=* IJulia :call IPyConnect("--kernel", "julia-0.4")
 
 nnoremap <Plug>(IPy-Word) <Cmd>call IPyRun(expand("<cword>"))<cr>
 nnoremap <Plug>(IPy-Run) <Cmd>call IPyRun(getline('.')."\n")<cr>
-vnoremap <Plug>(IPy-Run) :<c-u>call IPyRun(<SID>get_visual_selection())<cr>
+vnoremap <Plug>(IPy-Run) :<c-u>call IPyRun(<SID>get_selection(v:false))<cr>
 nnoremap <Plug>(IPy-RunCell) <Cmd>call IPyRunCell()<cr>
 nnoremap <Plug>(IPy-RunAll) :call IPyRun(join(getline(1, '$'), "\n"))<cr>
+noremap <Plug>(IPy-RunOp) <cmd>set opfunc=IPyOpFunc<cr>g@
 inoremap <Plug>(IPy-Complete) <Cmd>call IPyComplete()<cr>
 noremap <Plug>(IPy-WordObjInfo) :call IPyObjInfo(<SID>get_current_word(), 0)<cr>
 noremap <Plug>(IPy-Interrupt) <Cmd>call IPyInterrupt()<cr>
@@ -30,17 +31,18 @@ function! s:get_current_word()
     return word
 endfunction
 
-" thanks to @xolox on stackoverflow
-function! s:get_visual_selection()
-    let [lnum1, col1] = getpos("'<")[1:2]
-    let [lnum2, col2] = getpos("'>")[1:2]
+" thanks to @xolox on stackoverflow for visual selection
+" and to @mightymicha for operator selection
+function! s:get_selection(is_op)
+    let [lnum1, col1] = getpos(a:is_op ? "'[" : "'<")[1:2]
+    let [lnum2, col2] = getpos(a:is_op ? "']" : "'>")[1:2]
 
     if lnum1 > lnum2
       let [lnum1, col1, lnum2, col2] = [lnum2, col2, lnum1, col1]
     endif
 
     let lines = getline(lnum1, lnum2)
-    let lines[-1] = lines[-1][: col2 - (&selection == 'inclusive' ? 1 : 2)]
+    let lines[-1] = lines[-1][: col2 - ((&selection == 'inclusive' || a:is_op) ? 1 : 2)]
     let lines[0] = lines[0][col1 - 1:]
     return join(lines, "\n")."\n"
 endfunction
@@ -109,6 +111,10 @@ function! IPyRunCell()
     endwhile
     call IPyRun(join(lines, "\n"))
     return 1
+endfunction
+
+function! IPyOpFunc(kind)
+    call IPyRun(s:get_selection(v:true))
 endfunction
 
 
