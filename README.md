@@ -1,7 +1,7 @@
 # nvim-ipy
-This is a Jupyter front-end for Neovim, partially based on [ivanov/vim-ipython](https://github.com/ivanov/vim-ipython), but refactored for nvim's plugin architechture and improved async event handling. Jupyter 4.x or later is required. It uses python3 per default; see below for notes on using python2. It has full support for non-python kernels.
+This is a Jupyter front-end for Neovim, partially based on [ivanov/vim-ipython](https://github.com/ivanov/vim-ipython), but refactored for nvim's plugin architecture and improved async event handling. Jupyter 4.x or later is required. It uses python3 per default; see below for notes on using python2. It has full support for non-python kernels.
 
-It doesn't have all features of `vim-ipython`, but it has better support for long-running commands that continously produce output, for instance this silly example:
+It doesn't have all features of `vim-ipython`, but it has better support for long-running commands that continuously produce output, for instance this silly example:
 
     from time import sleep
     for i in range(10):
@@ -21,7 +21,7 @@ This plugin runs in the python3 host by default, but the kernel process don't ne
 
     ipython2 kernelspec install-self --user
 
-on beforehand for this to work.  I have tested that this plugin also supports IJulia and IHaskell, but ideally it should work with any Jupyter kernel.
+beforehand for this to work.  I have tested that this plugin also supports IJulia and IHaskell, but ideally it should work with any Jupyter kernel.
 
 If you only have the python2 host installed, you could do
 `cd rplugin; ln -s python3 python`
@@ -31,15 +31,17 @@ to run this plugin in the python2 host instead.
 
 **New:** `--no-window` can be passed an argument to `:IPython` to hide the output window.
 
-## Keybindings
+## Key bindings
 
 When kernel is running, following bindings can be used:
 
 Generic                   | default     | Action
 ------------------------- | ----------  | ------
-`<Plug>(IPy-Run)`         | `<F5>`      | Excecute current line or visual selection
-`<Plug>(IPy-RunCell)`     |             | Excecute current cell (see below)
-`<Plug>(IPy-RunAll)`      |             | Excecute all lines in buffer
+`<Plug>(IPy-Run)`         | `<F5>`      | Execute current line or visual selection
+`<Plug>(IPy-Word)`        |             | Execute current word
+`<Plug>(IPy-RunRegister)` |             | Execute contents of default register (last yanked text)
+`<Plug>(IPy-RunCell)`     |             | Execute current cell (see below)
+`<Plug>(IPy-RunAll)`      |             | Execute all lines in buffer
 `<Plug>(IPy-Complete)`    | `<C-F>`     | (insert mode) Kernel code completion
 `<Plug>(IPy-WordObjInfo)` | `<leader>?` | Inspect variable under the cursor
 `<Plug>(IPy-Interrupt)`   | `<F8>`      | Send interrupt to kernel
@@ -56,7 +58,7 @@ To your nvimrc and map to the generic bindings. For instance:
 
 ## Cells
 As a convenience, the plugin includes a definition of code cells (running only for now, later I might make them text objects).
-The cell is defined by setting `g:ipy_celldef` a list of two of rexexes that should match the beginning and end of a cell respecively. If a string is supplied, it will be used for both, and in addition the beginning and the end of the buffer will implicitly work as cells. The default is equivalent to:
+The cell is defined by setting `g:ipy_celldef` a list of two of regexes that should match the beginning and end of a cell respectively. If a string is supplied, it will be used for both, and in addition the beginning and the end of the buffer will implicitly work as cells. The default is equivalent to:
 
     let g:ipy_celldef = '^##'
 
@@ -83,7 +85,7 @@ Option                    | default     | Action
 Note that the filetype syntax highlight could interact badly with the highlights sent from the kernel as ANSI sequences (in IPython tracebacks, for instance). Therefore both are not enabled by default. I might look into a better solution for this.
 
 ## Exported vimscript functions
-Most useful is `IPyRun("string of code"[, silent])` which can be called to programmatically execute any code. The optional `silent` will avoid printing code and result to the console if nonzero. This is useful to bind common commands to a key. This will close all figures in matplotlib:
+Most useful is `IPyRun("string of code"[, silent])` which can be called to programmatically execute any code. The optional `silent` will avoid printing code and result to the console if non-zero. This is useful to bind common commands to a key. This will close all figures in matplotlib:
 
     nnoremap <Leader>c :call IPyRun('close("all")',1)<cr>
 

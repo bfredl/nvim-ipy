@@ -5,6 +5,7 @@ command! -nargs=* IJulia :call IPyConnect("--kernel", "julia-0.4")
 nnoremap <Plug>(IPy-Word) <Cmd>call IPyRun(expand("<cword>"))<cr>
 nnoremap <Plug>(IPy-Run) <Cmd>call IPyRun(getline('.')."\n")<cr>
 vnoremap <Plug>(IPy-Run) :<c-u>call IPyRun(<SID>get_visual_selection())<cr>
+nnoremap <Plug>(IPy-RunRegister) <Cmd>call IPyRun(getreg(0))<cr>
 nnoremap <Plug>(IPy-RunCell) <Cmd>call IPyRunCell()<cr>
 nnoremap <Plug>(IPy-RunAll) :call IPyRun(join(getline(1, '$'), "\n"))<cr>
 inoremap <Plug>(IPy-Complete) <Cmd>call IPyComplete()<cr>
@@ -111,7 +112,7 @@ function! IPyRunCell()
     return 1
 endfunction
 
-
+" Assume we want to perform mappings if not told otherwise
 if !exists('g:nvim_ipy_perform_mappings')
     let g:nvim_ipy_perform_mappings = 1
 endif
@@ -125,5 +126,3 @@ if g:nvim_ipy_perform_mappings
     map <silent> <leader>? <Plug>(IPy-WordObjInfo)
     "set titlestring=%t%(\ %M%)%(\ (%{expand(\"%:p:h\")})%)%(\ %a%)%(\ -\ %{g:ipy_status}%)
 endif
-
-
