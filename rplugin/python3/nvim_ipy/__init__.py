@@ -226,6 +226,7 @@ class IPythonPlugin(object):
         has_previous = self.has_connection
         if has_previous:
             # TODO: kill last kernel if we owend it?
+            JupyterVimApp.instance().kernel_client.stop_channels()
             JupyterVimApp.clear_instance()
 
         self.ip_app = JupyterVimApp.instance()
