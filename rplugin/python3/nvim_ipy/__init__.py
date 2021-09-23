@@ -244,14 +244,8 @@ class IPythonPlugin(object):
         reply = self.waitfor(self.kc.kernel_info())
         c = reply['content']
 
-        lang = 'unknown'
-        langver = 'unknown'
-
-        if 'name' in c['language_info']:
-            lang = c['language_info']['name']
-
-        if 'version' in c['language_info']: 
-            langver = c['language_info']['version']
+        lang = c['language_info'].get('name', 'unknown')
+        langver = c['language_info'].get('version', 'unknown')
 
         banner = [ "nvim-ipy: Jupyter shell for Neovim"] if not has_previous else []
         try:
