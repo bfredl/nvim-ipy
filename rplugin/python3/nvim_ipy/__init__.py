@@ -442,6 +442,23 @@ class IPythonPlugin(object):
                 #perhaps distinguish stderr using gutter marks?
                 self.append_outbuf(c['text'])
             elif t == 'display_data':
+                img = c['data'].get('image/png')
+                has_gui_widgets = self.vim.funcs.exists('g:gui_widgets')
+                if img is not None and has_gui_widgets != 0:
+                    # TODO the metadata may require a light background.
+                    img = img.rstrip('\n')
+                    img_id = self.vim.call('GuiWidgetPutBase64', img, 'image/png')
+                    h = 20
+                    r = len(self.buf)
+                    self.append_outbuf('\n' * h)
+                    self.vim.call('GuiWidgetPlace', img_id, self.buf.number, r, 0, 100, h, {
+                        'stretch': 'uniform',
+                        'halign': 'left',
+                        'valign': 'top',
+                        'hide': 'cursorline'
+                    })
+                    self.vim.call('GuiWidgetUpdateView', self.buf.number)
+                    return
                 d = c['data']['text/plain']
                 self.append_outbuf(d + '\n')
         except Exception as e:
