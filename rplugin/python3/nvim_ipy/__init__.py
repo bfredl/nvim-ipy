@@ -270,6 +270,8 @@ class IPythonPlugin(object):
         for i in range(len(banner)):
             self.buf.add_highlight('Comment', pos+i)
 
+        vim.exec_lua('vim.notify("Connected to kernel")')
+
         if self.do_filetype:
             # TODO: we might want to wrap this in a sync call
             # to avoid racyness with user interaction
